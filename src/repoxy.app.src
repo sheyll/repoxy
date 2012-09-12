@@ -1,0 +1,11 @@
+{application, repoxy,
+ [
+  {description, "The Epoxy Coat for Rebar - an emacs mode for erlang programming"},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.
