@@ -1,4 +1,4 @@
--module(simple_sexp_parser).
+-module(repoxy_sexp_parser).
 -export([parse/1, parse_and_scan/1, format_error/1]).
 
 -file("/usr/lib/erlang/lib/parsetools-2.0.7/include/yeccpre.hrl", 0).
@@ -185,7 +185,7 @@ yecctoken2string(Other) ->
 
 
 
--file("src/simple_sexp_parser.erl", 188).
+-file("src/repoxy_sexp_parser.erl", 188).
 
 yeccpars2(0=S, Cat, Ss, Stack, T, Ts, Tzr) ->
  yeccpars2_0(S, Cat, Ss, Stack, T, Ts, Tzr);
@@ -404,7 +404,7 @@ yeccgoto_tuple(18=_S, Cat, Ss, Stack, T, Ts, Tzr) ->
  yeccpars2_1(_S, Cat, Ss, Stack, T, Ts, Tzr).
 
 -compile({inline,yeccpars2_6_/1}).
--file("src/simple_sexp_parser.yrl", 4).
+-file("src/repoxy_sexp_parser.yrl", 4).
 yeccpars2_6_(__Stack0) ->
  [__1 | __Stack] = __Stack0,
  [begin
@@ -412,7 +412,7 @@ yeccpars2_6_(__Stack0) ->
   end | __Stack].
 
 -compile({inline,yeccpars2_7_/1}).
--file("src/simple_sexp_parser.yrl", 3).
+-file("src/repoxy_sexp_parser.yrl", 3).
 yeccpars2_7_(__Stack0) ->
  [__1 | __Stack] = __Stack0,
  [begin
@@ -420,7 +420,7 @@ yeccpars2_7_(__Stack0) ->
   end | __Stack].
 
 -compile({inline,yeccpars2_8_/1}).
--file("src/simple_sexp_parser.yrl", 5).
+-file("src/repoxy_sexp_parser.yrl", 5).
 yeccpars2_8_(__Stack0) ->
  [__1 | __Stack] = __Stack0,
  [begin
@@ -428,7 +428,7 @@ yeccpars2_8_(__Stack0) ->
   end | __Stack].
 
 -compile({inline,yeccpars2_9_/1}).
--file("src/simple_sexp_parser.yrl", 15).
+-file("src/repoxy_sexp_parser.yrl", 15).
 yeccpars2_9_(__Stack0) ->
  [__1 | __Stack] = __Stack0,
  [begin
@@ -436,7 +436,7 @@ yeccpars2_9_(__Stack0) ->
   end | __Stack].
 
 -compile({inline,yeccpars2_11_/1}).
--file("src/simple_sexp_parser.yrl", 12).
+-file("src/repoxy_sexp_parser.yrl", 12).
 yeccpars2_11_(__Stack0) ->
  [__2,__1 | __Stack] = __Stack0,
  [begin
@@ -444,7 +444,7 @@ yeccpars2_11_(__Stack0) ->
   end | __Stack].
 
 -compile({inline,yeccpars2_12_/1}).
--file("src/simple_sexp_parser.yrl", 13).
+-file("src/repoxy_sexp_parser.yrl", 13).
 yeccpars2_12_(__Stack0) ->
  [__3,__2,__1 | __Stack] = __Stack0,
  [begin
@@ -452,7 +452,7 @@ yeccpars2_12_(__Stack0) ->
   end | __Stack].
 
 -compile({inline,yeccpars2_13_/1}).
--file("src/simple_sexp_parser.yrl", 16).
+-file("src/repoxy_sexp_parser.yrl", 16).
 yeccpars2_13_(__Stack0) ->
  [__2,__1 | __Stack] = __Stack0,
  [begin
@@ -460,7 +460,7 @@ yeccpars2_13_(__Stack0) ->
   end | __Stack].
 
 -compile({inline,yeccpars2_14_/1}).
--file("src/simple_sexp_parser.yrl", 15).
+-file("src/repoxy_sexp_parser.yrl", 15).
 yeccpars2_14_(__Stack0) ->
  [__1 | __Stack] = __Stack0,
  [begin
@@ -468,7 +468,7 @@ yeccpars2_14_(__Stack0) ->
   end | __Stack].
 
 -compile({inline,yeccpars2_16_/1}).
--file("src/simple_sexp_parser.yrl", 8).
+-file("src/repoxy_sexp_parser.yrl", 8).
 yeccpars2_16_(__Stack0) ->
  [__2,__1 | __Stack] = __Stack0,
  [begin
@@ -476,7 +476,7 @@ yeccpars2_16_(__Stack0) ->
   end | __Stack].
 
 -compile({inline,yeccpars2_17_/1}).
--file("src/simple_sexp_parser.yrl", 9).
+-file("src/repoxy_sexp_parser.yrl", 9).
 yeccpars2_17_(__Stack0) ->
  [__3,__2,__1 | __Stack] = __Stack0,
  [begin
@@ -484,7 +484,7 @@ yeccpars2_17_(__Stack0) ->
   end | __Stack].
 
 -compile({inline,yeccpars2_20_/1}).
--file("src/simple_sexp_parser.yrl", 18).
+-file("src/repoxy_sexp_parser.yrl", 18).
 yeccpars2_20_(__Stack0) ->
  [__5,__4,__3,__2,__1 | __Stack] = __Stack0,
  [begin

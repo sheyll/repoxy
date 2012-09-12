@@ -6,13 +6,13 @@
 %% property of the creator of the scanner and is not covered by that
 %% Copyright.
 
--module(simple_sexp_scanner).
+-module(repoxy_sexp_scanner).
 
 -export([string/1,string/2,token/2,token/3,tokens/2,tokens/3]).
 -export([format_error/1]).
 
 %% User code. This is placed here to allow extra attributes.
--file("src/simple_sexp_scanner.xrl", 37).
+-file("src/repoxy_sexp_scanner.xrl", 37).
 
 drop_first_and_last([_|Rest]) ->
    lists:reverse(tl(lists:reverse(Rest))).
@@ -277,7 +277,7 @@ yysuf(List, N) -> lists:nthtail(N, List).
 %% return signal either an unrecognised character or end of current
 %% input.
 
--file("src/simple_sexp_scanner.erl", 279).
+-file("src/repoxy_sexp_scanner.erl", 279).
 yystate() -> 12.
 
 yystate(15, Ics, Line, Tlen, _, _) ->
@@ -578,52 +578,52 @@ yyaction(9, TokenLen, YYtcs, TokenLine) ->
 yyaction(_, _, _, _) -> error.
 
 -compile({inline,yyaction_0/1}).
--file("src/simple_sexp_scanner.xrl", 7).
+-file("src/repoxy_sexp_scanner.xrl", 7).
 yyaction_0(TokenLine) ->
      { token, { '(', TokenLine } } .
 
 -compile({inline,yyaction_1/1}).
--file("src/simple_sexp_scanner.xrl", 10).
+-file("src/repoxy_sexp_scanner.xrl", 10).
 yyaction_1(TokenLine) ->
      { token, { ')', TokenLine } } .
 
 -compile({inline,yyaction_2/1}).
--file("src/simple_sexp_scanner.xrl", 13).
+-file("src/repoxy_sexp_scanner.xrl", 13).
 yyaction_2(TokenLine) ->
      { token, { '[', TokenLine } } .
 
 -compile({inline,yyaction_3/1}).
--file("src/simple_sexp_scanner.xrl", 16).
+-file("src/repoxy_sexp_scanner.xrl", 16).
 yyaction_3(TokenLine) ->
      { token, { ']', TokenLine } } .
 
 -compile({inline,yyaction_4/1}).
--file("src/simple_sexp_scanner.xrl", 19).
+-file("src/repoxy_sexp_scanner.xrl", 19).
 yyaction_4(TokenLine) ->
      { token, { cons, TokenLine } } .
 
 -compile({inline,yyaction_5/0}).
--file("src/simple_sexp_scanner.xrl", 22).
+-file("src/repoxy_sexp_scanner.xrl", 22).
 yyaction_5() ->
      skip_token .
 
 -compile({inline,yyaction_6/2}).
--file("src/simple_sexp_scanner.xrl", 25).
+-file("src/repoxy_sexp_scanner.xrl", 25).
 yyaction_6(TokenChars, TokenLine) ->
      { token, { string, TokenLine, drop_first_and_last (TokenChars) } } .
 
 -compile({inline,yyaction_7/2}).
--file("src/simple_sexp_scanner.xrl", 28).
+-file("src/repoxy_sexp_scanner.xrl", 28).
 yyaction_7(TokenChars, TokenLine) ->
      { token, { number, TokenLine, list_to_integer (TokenChars) } } .
 
 -compile({inline,yyaction_8/2}).
--file("src/simple_sexp_scanner.xrl", 30).
+-file("src/repoxy_sexp_scanner.xrl", 30).
 yyaction_8(TokenChars, TokenLine) ->
      { token, { number, TokenLine, (- 1) * list_to_integer (tl (TokenChars)) } } .
 
 -compile({inline,yyaction_9/2}).
--file("src/simple_sexp_scanner.xrl", 33).
+-file("src/repoxy_sexp_scanner.xrl", 33).
 yyaction_9(TokenChars, TokenLine) ->
      { token, { symbol, TokenLine, list_to_atom (TokenChars) } } .
 
