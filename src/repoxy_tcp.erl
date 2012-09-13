@@ -2,8 +2,8 @@
 %%% @author Sven Heyll <sven.heyll@gmail.com>
 %%% @copyright (C) 2012, Sven Heyll
 %%% @doc
-%%% Compiles files in a rebar project, and communicates via S-Expressions
-%%% via a pipe with an external programm.
+%%% A tcp server that listens on port 5678 for communication with
+%%% repoxy.
 %%% @end
 %%% Created : 10 Sep 2012 by Sven Heyll <sven.heyll@gmail.com>
 %%%-------------------------------------------------------------------
@@ -65,18 +65,14 @@ connected({tcp_closed, _Sock}, State) ->
     error_logger:info_msg("Client disconnected."),
     accepting(accept, State);
 connected({tcp, CSock, Data}, State) ->
-    inet:setopts(CSock, [{active,once}]),
-    ScanRes = simple_sexp_scanner:string(Data),
-    case ScanRes of
-        {ok, Tokens, _} ->
-            Request = simple_sexp_parser:parse(Tokens),
-            LogMsg = lists:flatten(io_lib:format("~p", [Request])),
-            error_logger:info_msg("Received request  " ++ LogMsg);
-        Error ->
-            LogMsg = lists:flatten(io_lib:format("~p", [Error])),
-            error_logger:error_msg("Scan Error  " ++ LogMsg)
-    end,
-    {next_state, connected, State}.
+    log_result(
+      CSock,
+      Data,
+      send_response(
+        CSock,
+        handle_request(
+          parse_input(Data)))),
+    server_loop(State, CSock).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -112,3 +108,47 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+log_result(CSock, InData, {ok, _}) ->
+    LogMessage = lists:flatten(
+                   io_lib:format("Successfully processed request from ~w~n",
+                                 [CSock])),
+    error_logger:info_msg(LogMessage);
+log_result(CSock, InData, Err) ->
+    LogMessage = lists:flatten(
+                   io_lib:format("Error processing request ~s from ~w: ~p~n",
+                                 [InData, CSock, Err])),
+    error_logger:info_msg(LogMessage).
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+server_loop(State, CSock) ->
+    inet:setopts(CSock, [{active,once}]),
+    {next_state, connected, State}.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+send_response(CSock, Term) ->
+    {ok, OutMsg} = repoxy_sexp:from_erl(Term),
+    gen_tcp:send(CSock, OutMsg ++ "\n"),
+    Term.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+parse_input(Data) ->
+    InMsg = string:strip(Data, both, $\n),
+    repoxy_sexp:to_erl(InMsg).
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+handle_request({ok, Req}) ->
+    repoxy_facade:handle_request(Req);
+handle_request(Err) ->
+    Err.

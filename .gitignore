@@ -6,3 +6,4 @@
 
 deps/*
 ebin/*
+.eunit/*
