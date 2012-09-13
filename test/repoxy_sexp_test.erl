@@ -62,17 +62,16 @@ to_and_from_bijection_test_() ->
      end}.
 
 prop_bijective_to_from_str() ->
-    numtests(1000,
+    numtests(10000,
              ?FORALL(SExp, sexp(3),
                      begin
-                         io:format("trying ~p ", [SExp]),
                          SExpStr = repoxy_sexp:from_erl(SExp),
-                         io:format(" ->  ~p ~n", [SExpStr]),
                          {ok, SExp} =:= (catch repoxy_sexp:to_erl(SExpStr))
                      end)).
 sexp(0) ->
     union([integer(),
-           safe_atom()
+           safe_atom(),
+           string()
           ]);
 
 sexp(Depth) ->
@@ -82,27 +81,12 @@ sexp(Depth) ->
 
            %% improper lists
            fixed_list([?SEXP_RND(Depth) || _ <- lists:seq(1, random:uniform(Depth) - 1)]
-                      ++ [?SEXP_RND(Depth) | ?SEXP_RND(Depth)])
+                       ++ [?SEXP_RND(Depth) | ?SEXP_RND(1)])
           ]).
 
-%% sexp(0) ->
-%%     union([integer(), safe_atom(), {}]);
-%% sexp(Depth) ->
-%%     union(
-%%       lists:foldr(fun(D, Acc) ->
-%%                           Acc ++
-%%                               [sexp(D),
-%%                                {sexp(D)},
-%%                                {sexp(D), sexp(D)},
-%%                                {sexp(D), sexp(D), sexp(D)},
-%%                                list(sexp(D)),
-%%                                [sexp(D) || _ <- lists:seq(1, D)] ++ [sexp(D) | sexp(D)]]
-%%                   end,
-%%                   [],
-%%                   lists:seq(0, Depth - 1))).
-
 safe_atom() ->
-    ?SUCHTHAT(A, atom(), lists:all(fun printable/1, atom_to_list(A))).
+    ?SUCHTHAT(A, atom(),
+              lists:all(fun printable/1, atom_to_list(A))).
 
 printable(Char) when Char > 32 andalso Char < 127 ->
     true;
