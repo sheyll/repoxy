@@ -35,8 +35,19 @@
 -spec to_erl(sexp()) ->
                     {ok, sexp_term()} | {error, term()}.
 to_erl(InStr) ->
-    {ok, Tokens, _EndLine} = repoxy_sexp_scanner:string(InStr),
-    repoxy_sexp_parser:parse(Tokens).
+    case repoxy_sexp_scanner:string(InStr) of
+        {ok, Tokens, _EndLine}  ->
+            case repoxy_sexp_parser:parse(Tokens) of
+                {ok, Term} ->
+                    {ok, Term};
+
+                {error, {_, repoxy_sexp_parser, Msgs}} ->
+                    {error, string:join(Msgs, "")}
+            end;
+
+        {error, {_, repoxy_sexp_scanner, Err}, _EndLine} ->
+            {error, Err}
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -46,9 +57,17 @@ to_erl(InStr) ->
 -spec from_erl(sexp_term()) ->
                     sexp().
 from_erl(Term) when
-      is_atom(Term)
-      orelse is_integer(Term) ->
-    lists:flatten(io_lib:format("~w", [Term]));
+      is_integer(Term) ->
+    lists:flatten(io_lib:format("~p", [Term]));
+
+from_erl(Term) when
+      is_atom(Term) ->
+    case lists:flatten(io_lib:format("~w", [Term])) of
+        [$'|_] ->
+           lists:flatten(io_lib:format("'~s'", [Term]));
+        Str ->
+            Str
+    end;
 
 from_erl(Term) when
       is_tuple(Term) ->

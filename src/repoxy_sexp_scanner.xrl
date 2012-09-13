@@ -1,7 +1,8 @@
 
 Definitions.
 
-IDENTIFIER_CHAR = [a-zA-Z-_*!?./0-9#$%&^=+%':\\]
+UNQUOTED_ATOM_CHAR = [a-zA-Z-_*!?./0-9#$%&^=+%:\\"]
+
 
 Rules.
 
@@ -31,8 +32,10 @@ Rules.
 -[0-9]+ :
   {token, {number, TokenLine, (-1) * list_to_integer(tl(TokenChars))}}.
 
-{IDENTIFIER_CHAR}+ :
+{UNQUOTED_ATOM_CHAR}+ :
   {token, {symbol, TokenLine, list_to_atom(TokenChars)}}.
+'([^']|\\.)*' :
+  {token, {symbol, TokenLine, list_to_atom(drop_first_and_last(TokenChars))}}.
 
 Erlang code.
 

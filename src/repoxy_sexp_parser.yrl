@@ -18,5 +18,4 @@ tuple -> '[' elements ']' : list_to_tuple('$2').
 
 elements -> sexp : ['$1'].
 elements -> sexp elements : ['$1' | '$2'].
-
-sexp -> '(' sexp cons sexp ')' : ['$2' | '$4'].
+elements -> sexp cons sexp : ['$1' | '$3'].

@@ -16,36 +16,7 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-test_sexp(0) ->
-    union([integer(), atom(), {}]);
-test_sexp(Depth) ->
-    union(
-      lists:foldr(fun(D, Acc) ->
-                          Acc ++
-                              [test_sexp(D),
-                               {test_sexp(D)},
-                               {test_sexp(D), test_sexp(D)},
-                               {test_sexp(D), test_sexp(D), test_sexp(D)},
-                               list(test_sexp(D)),
-                               [test_sexp(D) || _ <- lists:seq(1, D)] ++ [test_sexp(D) | test_sexp(D)]]
-                  end,
-                  [],
-                  lists:seq(0, Depth - 1))).
-
-prop_bijective_to_from_str() ->
-    numtests(1000,
-             ?FORALL(SExp, test_sexp(3),
-                     begin
-                         {ok, SExp} =:= repoxy_sexp:to_erl(
-                                          repoxy_sexp:from_erl(SExp))
-                     end)).
-
-valid_msg_test_() ->
-    {timeout, 10,
-     fun() ->
-             proper:quickcheck(prop_bijective_to_from_str(), [verbose, long_result])
-     end}.
-
+-define(SEXP_RND(Depth), sexp(random:uniform(Depth) - 1)).
 
 integer_test() ->
     ?assertEqual("123", repoxy_sexp:from_erl(123)).
@@ -55,3 +26,85 @@ integer_0_test() ->
 
 empty_list_is_empty_string_test() ->
     ?assertEqual("\"\"", repoxy_sexp:from_erl([])).
+
+
+strange_0_test() ->
+    ?assertMatch({ok, _},
+                 repoxy_sexp:to_erl("(([] . '\\035') \"\" . [n])")).
+
+escaped_atom_test() ->
+    ?assertEqual({ok, '\202'},
+                 repoxy_sexp:to_erl(repoxy_sexp:from_erl('\202'))).
+
+invalid_char_test() ->
+    ?assertEqual({error, {illegal,[224]}},
+                 repoxy_sexp:to_erl([224])).
+
+bad_syntax_test() ->
+    ?assertEqual({error, "syntax error before: ']'"},
+                 repoxy_sexp:to_erl("(hello]")).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Property based brute force expression crunching...
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+to_and_from_bijection_test_() ->
+    {timeout, 10,
+     fun() ->
+             try
+                 proper:quickcheck(prop_bijective_to_from_str(), [verbose, long_result])
+             catch
+                 C:E ->
+                     error_logger:error_report(erlang:get_stacktrace()),
+                     erlang:C(E)
+             end
+     end}.
+
+prop_bijective_to_from_str() ->
+    numtests(1000,
+             ?FORALL(SExp, sexp(3),
+                     begin
+                         io:format("trying ~p ", [SExp]),
+                         SExpStr = repoxy_sexp:from_erl(SExp),
+                         io:format(" ->  ~p ~n", [SExpStr]),
+                         {ok, SExp} =:= (catch repoxy_sexp:to_erl(SExpStr))
+                     end)).
+sexp(0) ->
+    union([integer(),
+           safe_atom()
+          ]);
+
+sexp(Depth) ->
+    union([?SEXP_RND(Depth),
+           ?LAZY(list(?SEXP_RND(Depth))),
+           ?LAZY(loose_tuple(?SEXP_RND(Depth))),
+
+           %% improper lists
+           fixed_list([?SEXP_RND(Depth) || _ <- lists:seq(1, random:uniform(Depth) - 1)]
+                      ++ [?SEXP_RND(Depth) | ?SEXP_RND(Depth)])
+          ]).
+
+%% sexp(0) ->
+%%     union([integer(), safe_atom(), {}]);
+%% sexp(Depth) ->
+%%     union(
+%%       lists:foldr(fun(D, Acc) ->
+%%                           Acc ++
+%%                               [sexp(D),
+%%                                {sexp(D)},
+%%                                {sexp(D), sexp(D)},
+%%                                {sexp(D), sexp(D), sexp(D)},
+%%                                list(sexp(D)),
+%%                                [sexp(D) || _ <- lists:seq(1, D)] ++ [sexp(D) | sexp(D)]]
+%%                   end,
+%%                   [],
+%%                   lists:seq(0, Depth - 1))).
+
+safe_atom() ->
+    ?SUCHTHAT(A, atom(), lists:all(fun printable/1, atom_to_list(A))).
+
+printable(Char) when Char > 32 andalso Char < 127 ->
+    true;
+printable(_) ->
+    false.
