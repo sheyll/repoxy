@@ -62,12 +62,7 @@ from_erl(Term) when
 
 from_erl(Term) when
       is_atom(Term) ->
-    case lists:flatten(io_lib:format("~w", [Term])) of
-        [$'|_] ->
-           lists:flatten(io_lib:format("'~s'", [Term]));
-        Str ->
-            Str
-    end;
+    lists:flatten(io_lib:format("~w", [Term]));
 
 from_erl(Term) when
       is_tuple(Term) ->
@@ -116,7 +111,7 @@ is_string(List) ->
                        boolean().
 is_char(I) when
       is_integer(I)
-      andalso I > 0
+      andalso I >= 32
       andalso I < 255 ->
     true;
 is_char(_) ->
