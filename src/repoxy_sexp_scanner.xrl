@@ -1,7 +1,7 @@
 
 Definitions.
 
-IDENTIFIER_CHAR = [a-zA-Z-_*!?./0-9#$%&^=+%':]
+IDENTIFIER_CHAR = [a-zA-Z-_*!?./0-9#$%&^=+%':\\]
 
 Rules.
 
@@ -23,7 +23,7 @@ Rules.
 (\s|\r|\t|\n)+ :
   skip_token.
 
-"([^"]|\\.)+" :
+"([^"]|\\.)*" :
   {token, {string, TokenLine, drop_first_and_last(TokenChars)}}.
 
 [0-9]+ :
