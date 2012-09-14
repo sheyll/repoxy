@@ -32,7 +32,7 @@ Rules.
 {UNQUOTED_ATOM_START}{UNQUOTED_ATOM_CHAR}* :
   {token, {symbol, TokenLine, list_to_atom(TokenChars)}}.
 
-'{ATOM_CHAR}*' :
+'{ATOM_CHAR}+' :
   {token, {symbol, TokenLine, list_to_atom(drop_first_and_last(TokenChars))}}.
 
 [0-9]+ :
