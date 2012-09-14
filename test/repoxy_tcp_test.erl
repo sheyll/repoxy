@@ -20,7 +20,7 @@ valid_message_test() ->
     em:strict(M, repoxy_facade, handle_request, [InTerm],
               {return, OutTerm}),
     em:strict(M, repoxy_sexp, from_erl, [OutTerm],
-              {return, {ok, OutMsg}}),
+              {return, OutMsg}),
 
     em:replay(M),
     (catch repoxy_tcp:start_link()),
@@ -43,7 +43,7 @@ message_syntax_error_test() ->
     em:strict(M, repoxy_sexp, to_erl, [InMsg],
               {return, OutTerm}),
     em:strict(M, repoxy_sexp, from_erl, [OutTerm],
-              {return, {ok, OutMsg}}),
+              {return, OutMsg}),
 
     em:replay(M),
     (catch repoxy_tcp:start_link()),

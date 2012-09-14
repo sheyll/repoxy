@@ -2,24 +2,31 @@
 %%% @author Sven Heyll <sven.heyll@gmail.com>
 %%% @copyright (C) 2012, Sven Heyll
 %%% @doc
-%%% A tcp server that listens on port 5678 for communication with
-%%% repoxy.
+%%% Process incoming requests coming in via `handle_request' in order
+%%% to provide the functionality used by clients.
 %%% @end
-%%% Created : 10 Sep 2012 by Sven Heyll <sven.heyll@gmail.com>
+%%% Created : 13 Sep 2012 by Sven Heyll <sven.heyll@gmail.com>
 %%%-------------------------------------------------------------------
--module(repoxy_tcp).
+-module(repoxy_facade).
 
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/0]).
+-export([handle_request/1,
+         start_link/1]).
 
 %% gen_fsm callbacks
--export([init/1, accepting/2, connected/2, handle_event/3,
-         handle_sync_event/4, handle_info/3, terminate/3,
+-export([init/1,
+         project_loaded/3,
+         handle_event/3,
+         handle_sync_event/4,
+         handle_info/3,
+         terminate/3,
          code_change/4]).
 
 -define(SERVER, ?MODULE).
+
+-record(state, {rebar_config :: string()}).
 
 %%%===================================================================
 %%% API
@@ -27,52 +34,46 @@
 
 %%--------------------------------------------------------------------
 %% @doc
+%% Handle incoming erlang terms that represent a command/task/request.
+%% @return an erlang term, that can be converted to an s-expression,
+%%         that is supposed to be sent to the outside world.
+%% @end
 %%--------------------------------------------------------------------
-start_link() ->
-    gen_fsm:start_link({local, ?SERVER}, ?MODULE, [], []).
+-spec handle_request(repoxy_sexp:sexp_term()) ->
+                            {ok, repoxy_sexp:sexp_term()} |
+                            {error, repoxy_sexp:sexp_term()}.
+handle_request(Req) ->
+    {ok, Req}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Start the facade fsm that handles request for a single rebar
+%% project. Currently only one concurrent project and client can
+%% exist.
+%% @parameter a string containing the absolute path to a rebar config.
+%% @end
+%%--------------------------------------------------------------------
+start_link(RebarFile) ->
+    gen_fsm:start_link({local, ?SERVER}, ?MODULE, RebarFile, []).
 
 %%%===================================================================
 %%% gen_fsm callbacks
 %%%===================================================================
 
--record(state, {lsock}).
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+init(RebarFile) ->
+    stop_on_error(
+      load_project(
+        check_config(RebarFile))).
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-init([]) ->
-    gen_fsm:send_event(self(), accept),
-    {ok, LSock} = gen_tcp:listen(5678, [{packet, line},
-                                        {exit_on_close, true},
-                                        {reuseaddr, true},
-                                        {active, false}]),
-    {ok, accepting, #state{lsock = LSock}}.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-accepting(accept, State) ->
-    error_logger:info_msg("Waiting for client.~n"),
-    {ok, ClientSock} = gen_tcp:accept(State#state.lsock),
-    inet:setopts(ClientSock,[{active,once}]),
-    error_logger:info_msg("Connection to client established.~n"),
-    {next_state, connected, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-connected({tcp_closed, _Sock}, State) ->
-    error_logger:info_msg("Client disconnected.~n"),
-    accepting(accept, State);
-connected({tcp, CSock, Data}, State) ->
-    log_result(
-      CSock,
-      Data,
-      send_response(
-        CSock,
-        handle_request(
-          parse_input(Data)))),
-    server_loop(State, CSock).
+project_loaded(Request, _From, State) ->
+    Reply = ok,
+    {reply, Reply, project_loaded, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -90,8 +91,8 @@ handle_sync_event(_Event, _From, StateName, State) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-handle_info(Info, StateName, State) ->
-    ?MODULE:StateName(Info, State).
+handle_info(_Info, StateName, State) ->
+    {next_state, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -112,43 +113,29 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-log_result(CSock, _InData, {ok, _}) ->
-    LogMessage = lists:flatten(
-                   io_lib:format("Successfully processed request from ~w~n",
-                                 [CSock])),
-    error_logger:info_msg(LogMessage);
-log_result(CSock, InData, Err) ->
-    LogMessage = lists:flatten(
-                   io_lib:format("Error processing request ~s from ~w: ~p~n",
-                                 [InData, CSock, Err])),
-    error_logger:info_msg(LogMessage).
+stop_on_error({error, Reason}) ->
+    {stop, {error, Reason}};
+stop_on_error(ok) ->
+    {ok, project_loaded, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-server_loop(State, CSock) ->
-    inet:setopts(CSock, [{active,once}]),
-    {next_state, connected, State}.
+load_project(ok) ->
+    repoxy_rebar:load_rebar();
+load_project(Error) ->
+    Error.
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-send_response(CSock, Term) ->
-    OutMsg = repoxy_sexp:from_erl(Term),
-    gen_tcp:send(CSock, OutMsg ++ "\n"),
-    Term.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-parse_input(Data) ->
-    InMsg = string:strip(Data, both, $\n),
-    repoxy_sexp:to_erl(InMsg).
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-handle_request({ok, Req}) ->
-    repoxy_facade:handle_request(Req);
-handle_request(Err) ->
-    Err.
+check_config(RebarFile) ->
+    case filelib:is_regular(RebarFile) of
+        false ->
+            {error, "File does not exist"};
+        true ->
+            AbsName = filename:absname(RebarFile),
+            DirName = filename:dirname(AbsName),
+            c:cd(DirName),
+            ok
+    end.

@@ -1,11 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author Sven Heyll <sven.heyll@gmail.com>
 %%% @copyright (C) 2012, Sven Heyll
-%%% Created : 13 Sep 2012 by Sven Heyll <sven.heyll@gmail.com>
-%%%-------------------------------------------------------------------
-%%%-------------------------------------------------------------------
-%%% @author Sven Heyll <sven.heyll@gmail.com>
-%%% @copyright (C) 2012, Sven Heyll
 %%% @doc
 %%% Parse/Generate strings containing s-expressions to/from erlang
 %%% terms.
