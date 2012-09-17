@@ -35,7 +35,7 @@ start_link() ->
 %%% gen_fsm callbacks
 %%%===================================================================
 
--record(state, {lsock}).
+-record(state, {lsock, collected_data}).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -71,7 +71,10 @@ connected({tcp, CSock, Data}, State) ->
       send_response(
         CSock,
         handle_request(
-          parse_input(Data)))),
+          store_unfinished(
+            State,
+            parse_input(
+              State#state.collected_data, Data))))),
     server_loop(State, CSock).
 
 %%--------------------------------------------------------------------
@@ -112,43 +115,59 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-log_result(CSock, _InData, {ok, _}) ->
+parse_input(CollectedData, []) ->
+    case repoxy_sexp:to_erl(CollectedData) of
+        {ok, Term} ->
+            {{ok, Term}, []};
+        _Err ->
+            {unfinished, CollectedData}
+    end;
+
+parse_input(CollectedData, [NewChar | NewRest]) ->
+    InMsg = CollectedData ++ [NewChar],
+    case repoxy_sexp:to_erl(InMsg) of
+        {ok, Term} ->
+            {{ok, Term}, NewRest};
+        _Err ->
+            parse_input(InMsg, NewRest)
+    end.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+store_unfinished(State, {Res, ToCollect}) ->
+    {Res, State#state{collected_data = ToCollect}}.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+handle_request({{ok, Req}, State}) ->
+    {reply, repoxy_facade:handle_request(Req), State};
+handle_request({_Err, State}) ->
+    {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+send_response(CSock, Res = {reply, OutTerm, State}) ->
+    OutMsg = repoxy_sexp:from_erl(Term),
+    gen_tcp:send(CSock, OutMsg ++ "\n"),
+    Res;
+send_response(_CSock, Res = {noreply, State}) ->
+    Res.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+log_result(CSock, InData, Req) ->
     LogMessage = lists:flatten(
-                   io_lib:format("Successfully processed request from ~w~n",
-                                 [CSock])),
-    error_logger:info_msg(LogMessage);
-log_result(CSock, InData, Err) ->
-    LogMessage = lists:flatten(
-                   io_lib:format("Error processing request ~s from ~w: ~p~n",
-                                 [InData, CSock, Err])),
+                   io_lib:format("Processed request ~s from ~w: ~p~n",
+                                 [InData, CSock, Req])),
     error_logger:info_msg(LogMessage).
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-server_loop(State, CSock) ->
+server_loop(CSock, State) ->
     inet:setopts(CSock, [{active,once}]),
     {next_state, connected, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-send_response(CSock, Term) ->
-    OutMsg = repoxy_sexp:from_erl(Term),
-    gen_tcp:send(CSock, OutMsg ++ "\n"),
-    Term.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-parse_input(Data) ->
-    InMsg = string:strip(Data, both, $\n),
-    repoxy_sexp:to_erl(InMsg).
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-handle_request({ok, Req}) ->
-    repoxy_facade:handle_request(Req);
-handle_request(Err) ->
-    Err.

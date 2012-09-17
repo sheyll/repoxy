@@ -6,28 +6,29 @@
 -module(repoxy_facade_test).
 -include_lib("eunit/include/eunit.hrl").
 
-invalid_rebar_config_test() ->
-    process_flag(trap_exit, true),
-    ?assertMatch({error, _}, repoxy_facade:start_link("bad_file")).
-
-change_dir_test() ->
+start_link_test() ->
     (catch exit(whereis(repoxy_facade), kill)),
     process_flag(trap_exit, true),
     M = em:new(),
-    em:strict(M, repoxy_rebar, load_rebar, []),
+    em:strict(M, repoxy_core, load_rebar, [],
+              {return, config}),
     em:replay(M),
-    c:cd("src"),
-    ?assertMatch({ok, _}, repoxy_facade:start_link("../rebar.config")),
-    ?assert(filelib:is_regular("rebar.config")),
+    ?assertMatch({ok, _}, repoxy_facade:start_link()),
     em:verify(M),
     (catch exit(whereis(repoxy_facade), kill)).
 
-rebar_test() ->
+dispatch_commands_test() ->
+    Response = {ok, [ooo, aaa]},
     (catch exit(whereis(repoxy_facade), kill)),
     process_flag(trap_exit, true),
     M = em:new(),
-    em:strict(M, repoxy_rebar, load_rebar, []),
+    em:strict(M, repoxy_core, load_rebar, [],
+              {return, config}),
+    em:strict(M, repoxy_core, xxx, [config, yyy, zzz],
+             {return, Response}),
     em:replay(M),
-    ?assertMatch({ok, _}, repoxy_facade:start_link("rebar.config")),
+    ?assertMatch({ok, _}, repoxy_facade:start_link()),
+    ?assertEqual(Response,
+                 repoxy_facade:handle_request([xxx,yyy,zzz])),
     em:verify(M),
     (catch exit(whereis(repoxy_facade), kill)).

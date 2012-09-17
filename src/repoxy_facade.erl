@@ -13,7 +13,7 @@
 
 %% API
 -export([handle_request/1,
-         start_link/1]).
+         start_link/0]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -26,11 +26,20 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {rebar_config :: string()}).
-
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Start the facade fsm that handles request for a single rebar
+%% project. Currently only one concurrent project and client can
+%% exist.
+%% @parameter a string containing the absolute path to a rebar config.
+%% @end
+%%--------------------------------------------------------------------
+start_link() ->
+    gen_fsm:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -43,18 +52,7 @@
                             {ok, repoxy_sexp:sexp_term()} |
                             {error, repoxy_sexp:sexp_term()}.
 handle_request(Req) ->
-    {ok, Req}.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Start the facade fsm that handles request for a single rebar
-%% project. Currently only one concurrent project and client can
-%% exist.
-%% @parameter a string containing the absolute path to a rebar config.
-%% @end
-%%--------------------------------------------------------------------
-start_link(RebarFile) ->
-    gen_fsm:start_link({local, ?SERVER}, ?MODULE, RebarFile, []).
+    gen_fsm:sync_send_event(?SERVER, Req).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -63,16 +61,15 @@ start_link(RebarFile) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-init(RebarFile) ->
-    stop_on_error(
-      load_project(
-        check_config(RebarFile))).
+init([]) ->
+    {ok, project_loaded, initialize_rebar()}.
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
 project_loaded(Request, _From, State) ->
-    Reply = ok,
+    [Function|Args] = Request,
+    Reply = erlang:apply(repoxy_core, Function, [State|Args]),
     {reply, Reply, project_loaded, State}.
 
 %%--------------------------------------------------------------------
@@ -113,29 +110,5 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-stop_on_error({error, Reason}) ->
-    {stop, {error, Reason}};
-stop_on_error(ok) ->
-    {ok, project_loaded, #state{}}.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-load_project(ok) ->
-    repoxy_rebar:load_rebar();
-load_project(Error) ->
-    Error.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-check_config(RebarFile) ->
-    case filelib:is_regular(RebarFile) of
-        false ->
-            {error, "File does not exist"};
-        true ->
-            AbsName = filename:absname(RebarFile),
-            DirName = filename:dirname(AbsName),
-            c:cd(DirName),
-            ok
-    end.
+initialize_rebar() ->
+    repoxy_core:load_rebar().

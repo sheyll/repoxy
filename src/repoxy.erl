@@ -13,35 +13,47 @@
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-main([RebarFile]) ->
-    process_flag(trap_exit, true),
-    application:start(sasl),
-    application:start(repoxy),
-    repoxy_sup:start_link(RebarFile),
-    wait_for_stop(),
-    application:stop(repoxy);
-main(_) ->
+main([]) ->
     io:format(<<"
 
  -.- REPOXY -.-
 
-The Epoxy Coat for Rebar - enables an emacs mode for improved
-erlang programming.
+The Epoxy Coat for Rebar - enables interactive
+erlang building and unit test execution.
 
-Erlang node that compiles sources of a rebar project and runs tests.
-Used best with emacs and the corresponding mode.
+Usage: invoke repoxy from the directory where you would
+invoke rebar, i.e. the projects base directory.
 
-Usage: ./repoxy <path-to-rebar.config>
+Starts a server on port 5678, that accpets s-expressions.
 
-Starts the server on port 5678.
+">>),
+    process_flag(trap_exit, true),
+    start_apps(),
+    repoxy_sup:start_link(),
+    wait_for_stop(),
+    stop_apps().
 
-">>).
+%%--------------------------------------------------------------------
+%% @doc
+%% Exits repoxy, Can be called from anywhere to exit.
+%% @end
+%%--------------------------------------------------------------------
+shutdown() ->
+    shutdown_proc ! stop.
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-shutdown() ->
-    shutdown_proc ! stop.
+start_apps() ->
+    application:start(sasl),
+    application:start(repoxy, permanent).
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+stop_apps() ->
+    application:stop(repoxy),
+    application:stop(sasl).
 
 %%--------------------------------------------------------------------
 %% @private

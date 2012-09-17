@@ -6,7 +6,8 @@
                 repoxy_tcp]},
   {applications, [
                   kernel,
-                  stdlib
+                  stdlib,
+                  rebar
                  ]},
   {env, []}
  ]}.

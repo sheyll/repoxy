@@ -27,8 +27,8 @@ valid_message_test() ->
     {ok, Sock} = gen_tcp:connect("localhost", 5678,
                                  [{active, false},
                                   {packet, line}]),
-    ok = gen_tcp:send(Sock, InMsg ++ "\n"),
-    ?assertEqual({ok, OutMsg ++ "\n"}, gen_tcp:recv(Sock, 0)),
+    ok = gen_tcp:send(Sock, InMsg),
+    ?assertEqual({ok, OutMsg}, gen_tcp:recv(Sock, 0)),
     ok = gen_tcp:close(Sock),
     em:verify(M).
 
@@ -50,7 +50,7 @@ message_syntax_error_test() ->
     {ok, Sock} = gen_tcp:connect("localhost", 5678,
                                  [{active, false},
                                   {packet, line}]),
-    ok = gen_tcp:send(Sock, InMsg ++ "\n"),
-    ?assertEqual({ok, OutMsg ++ "\n"}, gen_tcp:recv(Sock, 0)),
+    ok = gen_tcp:send(Sock, InMsg),
+    ?assertEqual({ok, OutMsg}, gen_tcp:recv(Sock, 0)),
     ok = gen_tcp:close(Sock),
     em:verify(M).
