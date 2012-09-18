@@ -16,7 +16,8 @@
          add_log_level/1,
          add_script_name/1,
          load_project_config/1,
-         add_proj_dir/1
+         add_proj_dir/1,
+         add_repoxy_plugin/1
         ]).
 
 -export_type([cfg/0]).
@@ -100,3 +101,11 @@ load_project_config(Cfg) ->
 add_proj_dir(Cfg) ->
     Cwd = filename:absname(rebar_utils:get_cwd()),
     rebar_config:set_xconf(Cfg, base_dir, Cwd).
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Add `repoxy_rebar_plugin' as plugin to a rebar config.
+%% @end
+%%------------------------------------------------------------------------------
+add_repoxy_plugin(Cfg) ->
+    rebar_config:set(Cfg, plugins, [repoxy_rebar_plugin]).

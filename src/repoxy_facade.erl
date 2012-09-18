@@ -17,6 +17,7 @@
 
 %% gen_fsm callbacks
 -export([init/1,
+         not_loaded/3,
          project_loaded/3,
          handle_event/3,
          handle_sync_event/4,
@@ -52,7 +53,7 @@ start_link() ->
                             {ok, repoxy_sexp:sexp_term()} |
                             {error, repoxy_sexp:sexp_term()}.
 handle_request(Req) ->
-    gen_fsm:sync_send_event(?SERVER, Req).
+    gen_fsm:sync_send_event(?SERVER, Req, infinity).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -62,14 +63,39 @@ handle_request(Req) ->
 %% @private
 %%--------------------------------------------------------------------
 init([]) ->
-    {ok, project_loaded, initialize_rebar()}.
+    {ok, project_loaded, repoxy_core:load_rebar()}.
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
+not_loaded(close, _From, State) ->
+    {reply, closed, not_loaded, State};
+not_loaded(load, _From, _State) ->
+    {reply, ok, project_loaded, repoxy_core:load_rebar()}.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+project_loaded(close, _From, State) ->
+    repoxy_core:unload_rebar(),
+    {reply, closed, not_loaded, no_rebar_cfg};
 project_loaded(Request, _From, State) ->
-    [Function|Args] = Request,
-    Reply = erlang:apply(repoxy_core, Function, [State|Args]),
+    case Request of
+        [Function|Args] ->
+            case
+                erlang:function_exported(
+                  repoxy_core,
+                  Function,
+                  length(Args) + 1)
+            of
+                true ->
+                    Reply = erlang:apply(repoxy_core, Function, [State|Args]);
+                false ->
+                    Reply = {error, {invalid_command, Request}}
+            end;
+        Other ->
+            Reply = {error, {syntax_error, Other}}
+    end,
     {reply, Reply, project_loaded, State}.
 
 %%--------------------------------------------------------------------
@@ -94,7 +120,10 @@ handle_info(_Info, StateName, State) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-terminate(_Reason, _StateName, _State) ->
+terminate(_Reason, project_loaded, _State) ->
+    repoxy_core:unload_rebar(),
+    ok;
+terminate(_, _, _) ->
     ok.
 
 %%--------------------------------------------------------------------
@@ -106,9 +135,3 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-initialize_rebar() ->
-    repoxy_core:load_rebar().

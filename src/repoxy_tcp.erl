@@ -15,9 +15,12 @@
 -export([start_link/0]).
 
 %% gen_fsm callbacks
--export([init/1, accepting/2, connected/2, handle_event/3,
-         handle_sync_event/4, handle_info/3, terminate/3,
-         code_change/4]).
+-export([init/1,
+
+         accepting/2, connected/2, need_more_data/2,
+
+         handle_event/3, handle_sync_event/4, handle_info/3,
+         terminate/3, code_change/4]).
 
 -define(SERVER, ?MODULE).
 
@@ -35,16 +38,18 @@ start_link() ->
 %%% gen_fsm callbacks
 %%%===================================================================
 
--record(state, {lsock, collected_data}).
+-record(state, {lsock, csock, collected_data}).
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
 init([]) ->
     gen_fsm:send_event(self(), accept),
-    {ok, LSock} = gen_tcp:listen(5678, [{packet, line},
+    {ok, LSock} = gen_tcp:listen(5678, [{packet, raw},
+                                        {mode, list},
                                         {exit_on_close, true},
                                         {reuseaddr, true},
+                                        {nodelay, true},
                                         {active, false}]),
     {ok, accepting, #state{lsock = LSock}}.
 
@@ -54,9 +59,11 @@ init([]) ->
 accepting(accept, State) ->
     error_logger:info_msg("Waiting for client.~n"),
     {ok, ClientSock} = gen_tcp:accept(State#state.lsock),
-    inet:setopts(ClientSock,[{active,once}]),
     error_logger:info_msg("Connection to client established.~n"),
-    {next_state, connected, State}.
+
+    NewState = State#state{csock = ClientSock, collected_data = []},
+    reactivate_socket(NewState),
+    {next_state, connected, NewState}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -65,17 +72,18 @@ connected({tcp_closed, _Sock}, State) ->
     error_logger:info_msg("Client disconnected.~n"),
     accepting(accept, State);
 connected({tcp, CSock, Data}, State) ->
-    log_result(
-      CSock,
-      Data,
-      send_response(
-        CSock,
-        handle_request(
-          store_unfinished(
-            State,
-            parse_input(
-              State#state.collected_data, Data))))),
-    server_loop(State, CSock).
+    process_incoming_data(Data, State#state{csock = CSock}).
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+need_more_data({tcp_closed, Sock}, State) ->
+    error_logger:error_msg(
+      "Client ~p disconnected before completing request: ~s.~n",
+      [Sock, State#state.collected_data]),
+    accepting(accept, State);
+need_more_data({tcp, CSock, Data}, State) ->
+    process_incoming_data(Data, State#state{csock = CSock}).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -112,62 +120,84 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+process_incoming_data(Data, State) ->
+    reactivate_socket(State),
+    until_request_complete(
+      log_result(
+        send_response(
+          process_request(
+            try_to_parse(
+              concat_collected_and_new(Data, State)))))).
+
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-parse_input(CollectedData, []) ->
-    case repoxy_sexp:to_erl(CollectedData) of
-        {ok, Term} ->
-            {{ok, Term}, []};
-        _Err ->
-            {unfinished, CollectedData}
-    end;
+reactivate_socket(State) ->
+    inet:setopts(State#state.csock, [{active,once}]).
 
-parse_input(CollectedData, [NewChar | NewRest]) ->
-    InMsg = CollectedData ++ [NewChar],
-    case repoxy_sexp:to_erl(InMsg) of
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+until_request_complete({_Incomplete, State}) ->
+    {next_state, need_more_data, State};
+until_request_complete({{ok, close}, closed, State}) ->
+    gen_tcp:close(State#state.csock),
+    accepting(accept, State);
+until_request_complete({{ok, _Req}, _Reply, State}) ->
+    {next_state, connected, State#state{collected_data = []}}.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+log_result(In = {{ok, Req}, Reply, State}) ->
+    LogMsg = lists:flatten(
+               io_lib:format(
+                 "Processed request ~w from ~w with result ~w~n",
+                 [Req, State#state.csock, Reply])),
+    error_logger:info_msg(LogMsg),
+    In;
+log_result(In = {_Err, State}) ->
+    LogMsg = lists:flatten(
+               io_lib:format(
+                 "Incomplete request \"~s\" from ~w~n",
+                 [State#state.collected_data, State#state.csock])),
+    error_logger:info_msg(LogMsg),
+    In.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+send_response(Complete = {{ok, close}, closed, State}) ->
+    Complete;
+send_response(Complete = {{ok, _Req}, Reply, State}) ->
+    OutMsg = repoxy_sexp:from_erl(Reply),
+    gen_tcp:send(State#state.csock, OutMsg),
+    Complete;
+send_response(Incomplete) ->
+    Incomplete.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+process_request({{ok, Req}, State}) ->
+    Reply = repoxy_facade:handle_request(Req),
+    {{ok, Req}, Reply, State};
+process_request(Incomplete) ->
+    Incomplete.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+try_to_parse(State) ->
+    case repoxy_sexp:to_erl(State#state.collected_data) of
         {ok, Term} ->
-            {{ok, Term}, NewRest};
+            {{ok, Term}, State};
         _Err ->
-            parse_input(InMsg, NewRest)
+            {unfinished, State}
     end.
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-store_unfinished(State, {Res, ToCollect}) ->
-    {Res, State#state{collected_data = ToCollect}}.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-handle_request({{ok, Req}, State}) ->
-    {reply, repoxy_facade:handle_request(Req), State};
-handle_request({_Err, State}) ->
-    {noreply, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-send_response(CSock, Res = {reply, OutTerm, State}) ->
-    OutMsg = repoxy_sexp:from_erl(Term),
-    gen_tcp:send(CSock, OutMsg ++ "\n"),
-    Res;
-send_response(_CSock, Res = {noreply, State}) ->
-    Res.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-log_result(CSock, InData, Req) ->
-    LogMessage = lists:flatten(
-                   io_lib:format("Processed request ~s from ~w: ~p~n",
-                                 [InData, CSock, Req])),
-    error_logger:info_msg(LogMessage).
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-server_loop(CSock, State) ->
-    inet:setopts(CSock, [{active,once}]),
-    {next_state, connected, State}.
+concat_collected_and_new(Data, State) ->
+    State#state{collected_data = State#state.collected_data ++ Data}.

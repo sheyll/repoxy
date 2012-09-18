@@ -9,7 +9,9 @@
 -module(repoxy_core).
 
 -export([load_rebar/0,
-         recompile/1]).
+         unload_rebar/0,
+         rebar/2,
+         load_apps/1]).
 
 -include_lib("repoxy/include/state_m.hrl").
 
@@ -24,7 +26,11 @@
                         repoxy_rebar_cfg:cfg().
 load_rebar() ->
     error_logger:info_msg("Starting rebar ...~n"),
-    load_app(),
+    ok = application:load(rebar),
+    case crypto:start() of
+        ok -> ok;
+        {error,{already_started,crypto}} -> ok
+    end,
     Config = create_config(),
     start_logging(Config),
     error_logger:info_msg("...done.~n"),
@@ -32,33 +38,57 @@ load_rebar() ->
 
 %%------------------------------------------------------------------------------
 %% @doc
-%% Recompile the whole project using rebar.
+%% Unload the rebar application from the current node.
 %% @end
 %%------------------------------------------------------------------------------
--spec recompile(repoxy_rebar_cfg:cfg()) ->
-                       ok | {error, TextualOutput :: string()}.
-recompile(Cfg) ->
+-spec unload_rebar() ->
+                          ok.
+unload_rebar() ->
+    error_logger:info_msg("Unloading rebar ...~n"),
+    application:stop(rebar),
+    application:unload(rebar),
+    error_logger:info_msg("...done.~n"),
+    ok.
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Run rebar command.
+%% @end
+%%------------------------------------------------------------------------------
+-spec rebar(repoxy_rebar_cfg:cfg(), [atom()] | atom()) ->
+                   ok | {error, TextualOutput :: string()}.
+rebar(Cfg, RebarCmds) ->
+    RebarCmds1 = if
+                     is_list(RebarCmds) ->
+                         RebarCmds;
+                     is_atom(RebarCmds) ->
+                         [RebarCmds]
+                 end,
     try
-        rebar_core:process_commands([compile], Cfg),
+        rebar_core:process_commands(RebarCmds1, Cfg),
         ok
     catch
         throw:rebar_abort ->
-            {error, "Compilation failed."}
+            {error, {{"Rebar command failed."}, RebarCmds}}
     end.
+
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Load all applications of the current project.
+%% @end
+%%------------------------------------------------------------------------------
+-spec load_apps(repoxy_rebar_cfg:cfg()) ->
+                       ok | {error, TextualOutput :: string()}.
+load_apps(Cfg) ->
+    %% add rebar lib_dir
+    %% add rebar deps
+    %% add all subdirs
+    ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Internal Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%------------------------------------------------------------------------------
-%% @private
-%%------------------------------------------------------------------------------
-load_app() ->
-    ok = application:load(rebar),
-    case crypto:start() of
-        ok -> ok;
-        {error,{already_started,crypto}} -> ok
-    end.
 
 %%------------------------------------------------------------------------------
 %% @private
@@ -72,7 +102,8 @@ create_config() ->
          fun repoxy_rebar_cfg:add_log_level/1,
          fun repoxy_rebar_cfg:add_script_name/1,
          fun repoxy_rebar_cfg:load_project_config/1,
-         fun repoxy_rebar_cfg:add_proj_dir/1
+         fun repoxy_rebar_cfg:add_proj_dir/1,
+         fun repoxy_rebar_cfg:add_repoxy_plugin/1
         ]).
 
 %%------------------------------------------------------------------------------
