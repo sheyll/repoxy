@@ -10,6 +10,8 @@ load_test() ->
     (catch exit(whereis(repoxy_facade), kill)),
     process_flag(trap_exit, true),
     M = em:new(),
+    em:strict(M, repoxy_core, backup_node, [],
+              {return, node_data}),
     em:strict(M, repoxy_core, load_rebar, [],
               {return, config}),
     em:replay(M),
@@ -17,23 +19,26 @@ load_test() ->
     em:verify(M),
     (catch exit(whereis(repoxy_facade), kill)).
 
-close_test() ->
+reset_test() ->
     (catch exit(whereis(repoxy_facade), kill)),
     process_flag(trap_exit, true),
     M = em:new(),
+
+    em:strict(M, repoxy_core, backup_node, [],
+              {return, node_data}),
     em:strict(M, repoxy_core, load_rebar, [],
               {return, config}),
-    em:strict(M, repoxy_core, unload_rebar, []),
+    em:strict(M, repoxy_core, restore_node, [node_data],
+              {return, ok}),
+    em:strict(M, repoxy_core, backup_node, [],
+              {return, node_data}),
     em:strict(M, repoxy_core, load_rebar, [],
               {return, config}),
-    em:strict(M, repoxy_core, unload_rebar, []),
+
     em:replay(M),
     Res = repoxy_facade:start_link(),
     ?assertMatch({ok, _}, Res),
-    ?assertMatch(closed, repoxy_facade:handle_request(close)),
-    ?assertMatch(ok, repoxy_facade:handle_request(load)),
-    ?assertMatch(closed, repoxy_facade:handle_request(close)),
-    ?assertMatch(closed, repoxy_facade:handle_request(close)),
+    ?assertMatch(ok, repoxy_facade:handle_request([reset])),
     em:verify(M).
 
 dispatch_commands_test() ->
@@ -41,6 +46,8 @@ dispatch_commands_test() ->
     (catch exit(whereis(repoxy_facade), kill)),
     process_flag(trap_exit, true),
     M = em:new(),
+    em:strict(M, repoxy_core, backup_node, [],
+              {return, node_data}),
     em:strict(M, repoxy_core, load_rebar, [],
               {return, config}),
     em:strict(M, repoxy_core, xxx, [config, yyy, zzz],
@@ -57,6 +64,8 @@ invalid_command_test() ->
     (catch exit(whereis(repoxy_facade), kill)),
     process_flag(trap_exit, true),
     M = em:new(),
+    em:strict(M, repoxy_core, backup_node, [],
+              {return, node_data}),
     em:strict(M, repoxy_core, load_rebar, [],
               {return, config}),
     em:replay(M),
@@ -71,6 +80,8 @@ missing_function_test() ->
     (catch exit(whereis(repoxy_facade), kill)),
     process_flag(trap_exit, true),
     M = em:new(),
+    em:strict(M, repoxy_core, backup_node, [],
+              {return, node_data}),
     em:strict(M, repoxy_core, load_rebar, [],
               {return, config}),
     em:replay(M),

@@ -28,7 +28,8 @@ post_compile(Cfg, Arg) when is_list(Arg) ->
             error_logger:info_msg("EbinDir: ~p~n", [rebar_utils:ebin_dir()]),
             error_logger:info_msg("erl_opts: ~p~n", [rebar_utils:erl_opts(Cfg)]),
             AppLibDirs = rebar_config:get_local(Cfg, lib_dirs, []),
-            LibPaths = [rebar_utils:ebin_dir()|expand_lib_dirs(AppLibDirs, rebar_utils:get_cwd(), [])],
+            LibPaths = [rebar_utils:ebin_dir()|
+                        expand_lib_dirs(AppLibDirs, rebar_utils:get_cwd(), [])],
             error_logger:info_msg("AppLibDirs: ~p~n", [LibPaths]),
             code:add_pathsa(LibPaths),
             error_logger:info_msg("Loading App result: ~p~n", [application:load(AppName)]),

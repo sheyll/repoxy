@@ -13,11 +13,12 @@
 
 %% API
 -export([handle_request/1,
+%         push_app_info/1,
          start_link/0]).
 
 %% gen_fsm callbacks
 -export([init/1,
-         not_loaded/3,
+ %        project_loaded/2,
          project_loaded/3,
          handle_event/3,
          handle_sync_event/4,
@@ -26,6 +27,9 @@
          code_change/4]).
 
 -define(SERVER, ?MODULE).
+
+-record(state, {project_cfg :: repoxy_core:project_cfg(),
+                node_backup :: repoxy_core:node_backup()}).
 
 %%%===================================================================
 %%% API
@@ -63,22 +67,14 @@ handle_request(Req) ->
 %% @private
 %%--------------------------------------------------------------------
 init([]) ->
-    {ok, project_loaded, repoxy_core:load_rebar()}.
+    {ok, project_loaded, init_node()}.
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-not_loaded(close, _From, State) ->
-    {reply, closed, not_loaded, State};
-not_loaded(load, _From, _State) ->
-    {reply, ok, project_loaded, repoxy_core:load_rebar()}.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-project_loaded(close, _From, State) ->
-    repoxy_core:unload_rebar(),
-    {reply, closed, not_loaded, no_rebar_cfg};
+project_loaded([reset], _From, State) ->
+    ok = repoxy_core:restore_node(State#state.node_backup),
+    {reply, ok, project_loaded, init_node()};
 project_loaded(Request, _From, State) ->
     case Request of
         [Function|Args] ->
@@ -89,7 +85,9 @@ project_loaded(Request, _From, State) ->
                   length(Args) + 1)
             of
                 true ->
-                    Reply = erlang:apply(repoxy_core, Function, [State|Args]);
+                    Reply = erlang:apply(repoxy_core,
+                                         Function,
+                                         [State#state.project_cfg | Args]);
                 false ->
                     Reply = {error, {invalid_command, Request}}
             end;
@@ -120,9 +118,6 @@ handle_info(_Info, StateName, State) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-terminate(_Reason, project_loaded, _State) ->
-    repoxy_core:unload_rebar(),
-    ok;
 terminate(_, _, _) ->
     ok.
 
@@ -135,3 +130,12 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+init_node() ->
+    NodeBackUp = repoxy_core:backup_node(),
+    Cfg = repoxy_core:load_rebar(),
+    #state{node_backup = NodeBackUp,
+           project_cfg = Cfg}.

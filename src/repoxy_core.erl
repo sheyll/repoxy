@@ -9,9 +9,25 @@
 -module(repoxy_core).
 
 -export([load_rebar/0,
-         unload_rebar/0,
-         rebar/2,
-         load_apps/1]).
+         backup_node/0,
+         restore_node/1,
+         rebar/2]).
+
+-export_type([project_cfg/0,
+              node_backup/0]).
+
+-record(app_info, {}).
+-type app_infos() :: [{module(), #app_info{}}].
+
+-record(project_cfg, {rebar_cfg,
+                      app_infos :: app_infos()}).
+-type project_cfg() :: #project_cfg{}.
+
+-record(node_backup, {apps_loaded,
+                      code_path,
+                      loaded_modules}).
+
+-type node_backup() :: #node_backup{}.
 
 -include_lib("repoxy/include/state_m.hrl").
 
@@ -23,7 +39,7 @@
 %% @end
 %%------------------------------------------------------------------------------
 -spec load_rebar() ->
-                        repoxy_rebar_cfg:cfg().
+                        project_cfg().
 load_rebar() ->
     error_logger:info_msg("Starting rebar ...~n"),
     ok = application:load(rebar),
@@ -34,20 +50,61 @@ load_rebar() ->
     Config = create_config(),
     start_logging(Config),
     error_logger:info_msg("...done.~n"),
-    Config.
+    #project_cfg{rebar_cfg = Config, app_infos = []}.
 
 %%------------------------------------------------------------------------------
 %% @doc
-%% Unload the rebar application from the current node.
+%% Save code_path and loaded applications to be restored with `restore_node'.
 %% @end
 %%------------------------------------------------------------------------------
--spec unload_rebar() ->
+-spec backup_node() ->
+                         node_backup().
+backup_node() ->
+    #node_backup{apps_loaded = application:loaded_applications(),
+                 code_path = code:get_path(),
+                 loaded_modules = code:all_loaded()}.
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Unload the rebar application from the current node. Also reset the code_path
+%% and stop/unload all applications that were not loaded before.
+%% @end
+%%------------------------------------------------------------------------------
+-spec restore_node(node_backup()) ->
                           ok.
-unload_rebar() ->
-    error_logger:info_msg("Unloading rebar ...~n"),
-    application:stop(rebar),
-    application:unload(rebar),
-    error_logger:info_msg("...done.~n"),
+restore_node(#node_backup{apps_loaded = OldAppsLoaded,
+                          code_path = OldCodePath,
+                          loaded_modules = OldModules}) ->
+    error_logger:info_msg("~n  *** RESETTING NODE ***~n"),
+    [try
+         AppName = element(1, A),
+         error_logger:info_msg("Unloading ~p~n", [AppName]),
+         application:stop(AppName),
+         application:unload(AppName)
+     catch
+         C:E ->
+             error_logger:info_msg("Unloading ~p failed: ~p:~p ~n", [A, C, E])
+     end
+     || A <- application:loaded_applications(),
+        not lists:member(A, OldAppsLoaded)],
+
+    error_logger:info_msg("Resetting code_path to ~p~n", [OldCodePath]),
+    code:set_path(OldCodePath),
+
+    [begin
+         case string:str(atom_to_list(Mod), "repoxy") of
+             0 ->
+                 error_logger:info_msg("Purging ~p~n", [Mod]),
+                 code:delete(Mod),
+                 code:purge(Mod);
+             _ ->
+                 error_logger:info_msg("NOT Purging ~p~n", [Mod])
+         end
+     end
+     || M = {Mod, _} <- code:all_loaded(),
+        not lists:member(M, OldModules)],
+
+    error_logger:info_msg("Successfully resetted node.~n"),
     ok.
 
 %%------------------------------------------------------------------------------
@@ -55,7 +112,7 @@ unload_rebar() ->
 %% Run rebar command.
 %% @end
 %%------------------------------------------------------------------------------
--spec rebar(repoxy_rebar_cfg:cfg(), [atom()] | atom()) ->
+-spec rebar(project_cfg(), [atom()] | atom()) ->
                    ok | {error, TextualOutput :: string()}.
 rebar(Cfg, RebarCmds) ->
     RebarCmds1 = if
@@ -65,26 +122,12 @@ rebar(Cfg, RebarCmds) ->
                          [RebarCmds]
                  end,
     try
-        rebar_core:process_commands(RebarCmds1, Cfg),
+        rebar_core:process_commands(RebarCmds1, Cfg#project_cfg.rebar_cfg),
         ok
     catch
         throw:rebar_abort ->
             {error, {{"Rebar command failed."}, RebarCmds}}
     end.
-
-
-%%------------------------------------------------------------------------------
-%% @doc
-%% Load all applications of the current project.
-%% @end
-%%------------------------------------------------------------------------------
--spec load_apps(repoxy_rebar_cfg:cfg()) ->
-                       ok | {error, TextualOutput :: string()}.
-load_apps(Cfg) ->
-    %% add rebar lib_dir
-    %% add rebar deps
-    %% add all subdirs
-    ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Internal Functions

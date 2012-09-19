@@ -69,6 +69,7 @@ accepting(accept, State) ->
 %% @private
 %%--------------------------------------------------------------------
 connected({tcp_closed, _Sock}, State) ->
+    repoxy_facade:handle_request([reset]),
     error_logger:info_msg("Client disconnected.~n"),
     accepting(accept, State);
 connected({tcp, CSock, Data}, State) ->
@@ -78,6 +79,7 @@ connected({tcp, CSock, Data}, State) ->
 %% @private
 %%--------------------------------------------------------------------
 need_more_data({tcp_closed, Sock}, State) ->
+    repoxy_facade:handle_request([reset]),
     error_logger:error_msg(
       "Client ~p disconnected before completing request: ~s.~n",
       [Sock, State#state.collected_data]),
@@ -140,8 +142,7 @@ reactivate_socket(State) ->
 %%--------------------------------------------------------------------
 until_request_complete({_Incomplete, State}) ->
     {next_state, need_more_data, State};
-until_request_complete({{ok, close}, closed, State}) ->
-    gen_tcp:close(State#state.csock),
+until_request_complete({{ok, [close]}, _, State}) ->
     accepting(accept, State);
 until_request_complete({{ok, _Req}, _Reply, State}) ->
     {next_state, connected, State#state{collected_data = []}}.
@@ -167,7 +168,8 @@ log_result(In = {_Err, State}) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-send_response(Complete = {{ok, close}, closed, State}) ->
+send_response(Complete = {{ok, [close]}, _, State}) ->
+    gen_tcp:close(State#state.csock),
     Complete;
 send_response(Complete = {{ok, _Req}, Reply, State}) ->
     OutMsg = repoxy_sexp:from_erl(Reply),
@@ -179,6 +181,9 @@ send_response(Incomplete) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
+process_request({{ok, [close]}, State}) ->
+    Reply = repoxy_facade:handle_request([reset]),
+    {{ok, [close]}, Reply, State};
 process_request({{ok, Req}, State}) ->
     Reply = repoxy_facade:handle_request(Req),
     {{ok, Req}, Reply, State};
