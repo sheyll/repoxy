@@ -16,7 +16,10 @@
 -export_type([project_cfg/0,
               node_backup/0]).
 
--record(app_info, {}).
+-include("repoxy_core.hrl").
+
+-type app_info() :: #app_info{}.
+
 -type app_infos() :: [{module(), #app_info{}}].
 
 -record(project_cfg, {rebar_cfg,

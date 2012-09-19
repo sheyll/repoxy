@@ -13,12 +13,12 @@
 
 %% API
 -export([handle_request/1,
-%         push_app_info/1,
+         add_app_info/1,
          start_link/0]).
 
 %% gen_fsm callbacks
 -export([init/1,
- %        project_loaded/2,
+         project_loaded/2,
          project_loaded/3,
          handle_event/3,
          handle_sync_event/4,
@@ -59,6 +59,18 @@ start_link() ->
 handle_request(Req) ->
     gen_fsm:sync_send_event(?SERVER, Req, infinity).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Add the information about an application to the configuration
+%% that is passed to `repoxy_core'.
+%% This is likely to be called by `repoxy_rebar_plugin'.
+%% @end
+%%--------------------------------------------------------------------
+-spec add_app_info(repoxy_core:app_info()) ->
+                            ok.
+add_app_info(AppInfo) ->
+    gen_fsm:send_event(?SERVER, AppInfo).
+
 %%%===================================================================
 %%% gen_fsm callbacks
 %%%===================================================================
@@ -77,7 +89,7 @@ project_loaded([reset], _From, State) ->
     {reply, ok, project_loaded, init_node()};
 project_loaded(Request, _From, State) ->
     case Request of
-        [Function|Args] ->
+        [Function | Args] ->
             case
                 erlang:function_exported(
                   repoxy_core,
