@@ -2,8 +2,8 @@
 %%% @author Sven Heyll <sven.heyll@gmail.com>
 %%% @copyright (C) 2012, Sven Heyll
 %%% @doc
-%%% A tcp server that listens on port 5678 for communication with
-%%% repoxy.
+%%% A tcp server that listens on port 5678 for clients that communicate
+%%% with repoxy via s-expressions.
 %%% @end
 %%% Created : 10 Sep 2012 by Sven Heyll <sven.heyll@gmail.com>
 %%%-------------------------------------------------------------------
