@@ -15,6 +15,7 @@
          rebar/2,
          add_app_info/2,
          get_app_infos/1,
+         compile_file/2,
          load_apps_into_node/1]).
 
 -export_type([project_cfg/0,
@@ -37,6 +38,7 @@
 
 -include_lib("repoxy/include/state_m.hrl").
 
+-define(REPOXY_EBIN_DIR, ".repoxy").
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -133,7 +135,17 @@ restore_node(#node_backup{apps_loaded = OldAppsLoaded,
 rebar(Cfg, RebarCmds) ->
     RebarCmds1 = if
                      is_list(RebarCmds) ->
-                         RebarCmds;
+                         if
+                             is_integer(hd(RebarCmds)) ->
+                                 [list_to_atom(RebarCmds)];
+                             true ->
+                                 [if is_list(C) ->
+                                          list_to_atom(C);
+                                     true ->
+                                          C
+                                  end
+                                  || C <- RebarCmds]
+                         end;
                      is_atom(RebarCmds) ->
                          [RebarCmds]
                  end,
@@ -168,6 +180,19 @@ add_app_info(AppInfo, Cfg) ->
                           [#app_info{}].
 get_app_infos(Cfg) ->
     Cfg#project_cfg.app_infos.
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% @end
+%%------------------------------------------------------------------------------
+-spec compile_file(project_cfg(), string()) ->
+                                 term().
+compile_file(Cfg, File) ->
+    filelib:ensure_dir(filename:join([?REPOXY_EBIN_DIR, "dummy.beam"])),
+    compile:file(
+      File,
+      add_repoxy_erl_opts(
+        lookup_app_erl_opts(File, Cfg))).
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -221,3 +246,19 @@ create_config() ->
 %%------------------------------------------------------------------------------
 start_logging(Cfg) ->
     ok = rebar_log:init(Cfg).
+
+%%------------------------------------------------------------------------------
+%% @private
+%%------------------------------------------------------------------------------
+add_repoxy_erl_opts(Opts) ->
+    [debug_info,
+     verbose,
+     report,
+     {outdir,?REPOXY_EBIN_DIR}] ++ Opts.
+
+%%------------------------------------------------------------------------------
+%% @private
+%%------------------------------------------------------------------------------
+lookup_app_erl_opts(File, Cfg) ->
+    %% TODO
+    [].
