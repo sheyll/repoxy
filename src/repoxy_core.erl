@@ -8,22 +8,25 @@
 %%%-------------------------------------------------------------------
 -module(repoxy_core).
 
--export([load_rebar/0,
+-export([empty_prj_cfg/0,
+         load_rebar/0,
          backup_node/0,
          restore_node/1,
-         rebar/2]).
+         rebar/2,
+         add_app_info/2,
+         get_app_infos/1,
+         load_apps_into_node/1]).
 
 -export_type([project_cfg/0,
               node_backup/0]).
 
 -include("repoxy_core.hrl").
 
--type app_info() :: #app_info{}.
+-record(project_cfg, {rebar_cfg = no_rebar_cfg
+                      :: rebar_config:config(),
+                      app_infos = []
+                      :: [#app_info{}]}).
 
--type app_infos() :: [{module(), #app_info{}}].
-
--record(project_cfg, {rebar_cfg,
-                      app_infos :: app_infos()}).
 -type project_cfg() :: #project_cfg{}.
 
 -record(node_backup, {apps_loaded,
@@ -34,6 +37,16 @@
 
 -include_lib("repoxy/include/state_m.hrl").
 
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Create an empty project_cfg - use this only in unit tests.
+%% @end
+%%------------------------------------------------------------------------------
+-spec empty_prj_cfg() ->
+                           project_cfg().
+empty_prj_cfg() ->
+    #project_cfg{}.
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -132,9 +145,60 @@ rebar(Cfg, RebarCmds) ->
             {error, {{"Rebar command failed."}, RebarCmds}}
     end.
 
+%%------------------------------------------------------------------------------
+%% @doc
+%% Add an app info to the
+%% @end
+%%------------------------------------------------------------------------------
+-spec add_app_info(#app_info{}, project_cfg()) ->
+                          ok | {error, TextualOutput :: string()}.
+add_app_info(AppInfo, Cfg) ->
+    #app_info{name = AppName} = AppInfo,
+    #project_cfg{app_infos = AppInfos} = Cfg,
+    NewAppInfos = lists:keystore(AppName, ?APP_NAME_POS, AppInfos, AppInfo),
+    Cfg#project_cfg{app_infos = NewAppInfos}.
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Extract #app_info{}'s from a project config. Useful for unit tests.
+%% @return all app_info records.
+%% @end
+%%------------------------------------------------------------------------------
+-spec get_app_infos(project_cfg()) ->
+                          [#app_info{}].
+get_app_infos(Cfg) ->
+    Cfg#project_cfg.app_infos.
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Load the applications added by `add_app_info/2' into the current node
+%% in order to enable compilation and execution of the modules in of an app.
+%% The effect of this can only be reversed by `restore_node/1'.
+%% @end
+%%------------------------------------------------------------------------------
+-spec load_apps_into_node(project_cfg()) ->
+                                 [#app_info{}].
+load_apps_into_node(Cfg) ->
+    [load_app_into_node(AppCfg) ||
+        AppCfg <- Cfg#project_cfg.app_infos].
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Internal Functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%------------------------------------------------------------------------------
+%% @private
+%%------------------------------------------------------------------------------
+load_app_into_node(#app_info{
+                      name = Name,
+                      lib_paths = LibPaths
+                     }) ->
+    error_logger:info_msg("Loading ~p~n.", [Name]),
+    error_logger:info_msg("Adding paths: ~p~n.", [code:add_pathsa(LibPaths)]),
+    Loaded = application:load(Name),
+    error_logger:info_msg("Loading application: ~p~n.", [Loaded]),
+    error_logger:info_msg("Done loading ~p~n~n.", [Name]),
+    {Name, Loaded}.
 
 %%------------------------------------------------------------------------------
 %% @private

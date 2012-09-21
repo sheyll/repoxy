@@ -19,7 +19,7 @@ load_test() ->
     em:verify(M),
     (catch exit(whereis(repoxy_facade), kill)).
 
-add_app_info_test() ->
+app_compiled_test() ->
     (catch exit(whereis(repoxy_facade), kill)),
     process_flag(trap_exit, true),
     M = em:new(),
@@ -28,18 +28,18 @@ add_app_info_test() ->
     em:strict(M, repoxy_core, load_rebar, [],
               {return, config}),
 
-    em:strict(M, repoxy_core, add_app_info, [config, app_info1],
+    em:strict(M, repoxy_core, add_app_info, [app_info1, config],
               {return, config2}),
     Test = self(),
-    em:strict(M, repoxy_core, add_app_info, [config2, app_info2],
+    em:strict(M, repoxy_core, add_app_info, [app_info2, config2],
               {function, fun(_) ->
                                  Test ! pass
                                      end}),
 
     em:replay(M),
     ?assertMatch({ok, _}, repoxy_facade:start_link()),
-    ok = repoxy_facade:add_app_info(app_info1),
-    ok = repoxy_facade:add_app_info(app_info2),
+    ok = repoxy_facade:app_compiled(app_info1),
+    ok = repoxy_facade:app_compiled(app_info2),
     receive
         pass ->
             ok

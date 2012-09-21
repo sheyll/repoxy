@@ -13,7 +13,7 @@
 
 %% API
 -export([handle_request/1,
-         add_app_info/1,
+         app_compiled/1,
          start_link/0]).
 
 %% gen_fsm callbacks
@@ -27,6 +27,8 @@
          code_change/4]).
 
 -define(SERVER, ?MODULE).
+
+-include("repoxy_core.hrl").
 
 -record(state, {project_cfg :: repoxy_core:project_cfg(),
                 node_backup :: repoxy_core:node_backup()}).
@@ -66,10 +68,10 @@ handle_request(Req) ->
 %% This is likely to be called by `repoxy_rebar_plugin'.
 %% @end
 %%--------------------------------------------------------------------
--spec add_app_info(repoxy_core:app_info()) ->
+-spec app_compiled(repoxy_core:app_info()) ->
                             ok.
-add_app_info(AppInfo) ->
-    gen_fsm:send_event(?SERVER, AppInfo).
+app_compiled(AppInfo) ->
+    gen_fsm:send_event(?SERVER, {add_app_info, AppInfo}).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -107,6 +109,15 @@ project_loaded(Request, _From, State) ->
             Reply = {error, {syntax_error, Other}}
     end,
     {reply, Reply, project_loaded, State}.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+project_loaded({add_app_info, AppInfo},
+               State = #state{project_cfg = Cfg}) ->
+    {next_state,
+     project_loaded,
+     State#state{project_cfg = repoxy_core:add_app_info(AppInfo, Cfg)}}.
 
 %%--------------------------------------------------------------------
 %% @private

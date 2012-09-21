@@ -12,6 +12,8 @@
 
 -export([post_compile/2]).
 
+-include("repoxy_core.hrl").
+
 %%------------------------------------------------------------------------------
 %% @doc
 %% Report all applications that rebar discovers to repoxy_facade.
@@ -21,9 +23,9 @@ post_compile(Cfg, Arg) when is_list(Arg) ->
     IsApp = string:str(Arg, ".app") =/= 0,
     if IsApp ->
             {NewCfg, _} = rebar_app_utils:app_name(Cfg, Arg),
-            {AppName, AppData} = rebar_config:get_xconf(NewCfg, {appfile, {app_file, Arg}}),
-            error_logger:info_msg("App: ~p~n", [AppName]),
-            rebar_erlc_compiler:compile(Cfg, Arg),
+            {AppName, AppData} =
+                rebar_config:get_xconf(NewCfg, {appfile, {app_file, Arg}}),
+            error_logger:info_msg("Gathering App: ~p~n", [AppName]),
             error_logger:info_msg("AppData: ~p~n", [AppData]),
             error_logger:info_msg("EbinDir: ~p~n", [rebar_utils:ebin_dir()]),
             error_logger:info_msg("erl_opts: ~p~n", [rebar_utils:erl_opts(Cfg)]),
@@ -31,9 +33,12 @@ post_compile(Cfg, Arg) when is_list(Arg) ->
             LibPaths = [rebar_utils:ebin_dir()|
                         expand_lib_dirs(AppLibDirs, rebar_utils:get_cwd(), [])],
             error_logger:info_msg("AppLibDirs: ~p~n", [LibPaths]),
-            code:add_pathsa(LibPaths),
-            error_logger:info_msg("Loading App result: ~p~n", [application:load(AppName)]),
-            error_logger:info_msg("code lib_dir: ~p~n", [code:lib_dir(AppName)]);
+            repoxy_facade:app_compiled(#app_info{
+                                          name = AppName,
+                                          config = AppData,
+                                          lib_paths = LibPaths,
+                                          erl_opts = rebar_utils:erl_opts(Cfg)
+                                         });
 
        true ->
             error_logger:info_msg("Skipping: ~p~n", [Arg])

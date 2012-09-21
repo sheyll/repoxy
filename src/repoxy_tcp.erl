@@ -69,7 +69,6 @@ accepting(accept, State) ->
 %% @private
 %%--------------------------------------------------------------------
 connected({tcp_closed, _Sock}, State) ->
-    repoxy_facade:handle_request([reset]),
     error_logger:info_msg("Client disconnected.~n"),
     accepting(accept, State);
 connected({tcp, CSock, Data}, State) ->
@@ -79,7 +78,6 @@ connected({tcp, CSock, Data}, State) ->
 %% @private
 %%--------------------------------------------------------------------
 need_more_data({tcp_closed, Sock}, State) ->
-    repoxy_facade:handle_request([reset]),
     error_logger:error_msg(
       "Client ~p disconnected before completing request: ~s.~n",
       [Sock, State#state.collected_data]),
@@ -182,8 +180,7 @@ send_response(Incomplete) ->
 %% @private
 %%--------------------------------------------------------------------
 process_request({{ok, [close]}, State}) ->
-    Reply = repoxy_facade:handle_request([reset]),
-    {{ok, [close]}, Reply, State};
+    {{ok, [close]}, ignore, State};
 process_request({{ok, Req}, State}) ->
     Reply = repoxy_facade:handle_request(Req),
     {{ok, Req}, Reply, State};
