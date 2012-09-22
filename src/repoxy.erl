@@ -27,6 +27,8 @@ invoke rebar, i.e. the projects base directory.
 Starts a server on port 5678, that accpets s-expressions.
 
 ">>),
+    error_logger:info_msg("Running in directory ~p.~n",
+                          [file:get_cwd()]),
     process_flag(trap_exit, true),
     start_apps(),
     repoxy_sup:start_link(),

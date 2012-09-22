@@ -151,7 +151,7 @@ until_request_complete({{ok, _Req}, _Reply, State}) ->
 log_result(In = {{ok, Req}, Reply, State}) ->
     LogMsg = lists:flatten(
                io_lib:format(
-                 "Processed request ~p from ~w with result ~w~n",
+                 "Processed request ~p from ~w with result ~p~n",
                  [Req, State#state.csock, Reply])),
     error_logger:info_msg(LogMsg),
     In;

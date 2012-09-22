@@ -153,8 +153,8 @@ rebar(Cfg, RebarCmds) ->
         rebar_core:process_commands(RebarCmds1, Cfg#project_cfg.rebar_cfg),
         ok
     catch
-        throw:rebar_abort ->
-            {error, {{"Rebar command failed."}, RebarCmds}}
+        C:E ->
+            {error, {{rebar_failed, RebarCmds}, C, E}}
     end.
 
 %%------------------------------------------------------------------------------
