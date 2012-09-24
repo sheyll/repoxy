@@ -15,7 +15,8 @@
         {name = no_name,
          config = no_config,
          lib_paths = no_lib_paths,
-         erl_opts = no_erl_opts
+         erl_opts = no_erl_opts,
+         cwd = ""
         }).
 
 

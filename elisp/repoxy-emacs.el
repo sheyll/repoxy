@@ -47,7 +47,8 @@ node and triggers rebar to compile all"
   (repoxy-do '(rebar clean))
   (repoxy-do '(rebar "get-deps"))
   (repoxy-do '(rebar compile))
-  (repoxy-do '(load_apps_into_node)))
+  (repoxy-do '(load_apps_into_node))
+  (setq -repoxy-app-paths (repoxy-do '(get_app_paths))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Repoxy invokation API
@@ -64,7 +65,10 @@ recursivly for a file called 'repoxy'."
       (error "REPOXY already running"))
   (setq -repoxy-server-buf
         (-repoxy-run-in-terminal "./repoxy" 't))
-  (if (-repoxy-wait-for-output -repoxy-server-buf "Waiting for client" 10)
+  (if (-repoxy-wait-for-output
+       -repoxy-server-buf
+       (regexp-qoute "Waiting for client.")
+       10)
       (message "REPOXY repoxy started")
     (error "REPOXY start server failed")))
 
@@ -129,12 +133,13 @@ reseting the project and recompiling everything."
   "Disconnect from a repoxy instance. This does not cause repoxy
 to reset itself, so a later reconnect does not require recompilation"
   (interactive)
+  (setq -repoxy-receive-buffer nil)
+  (setq -repoxy-result nil)
+  (setq -repoxy-app-paths nil)
   (if (not (-repoxy-is-connected))
       (error "REPOXY not connected"))
   (delete-process -repoxy-socket)
   (setq -repoxy-socket nil)
-  (setq -repoxy-receive-buffer nil)
-  (setq -repoxy-result nil)
   (message "REPOXY disconnected from server"))
 
 (defun repoxy-do (request)
@@ -164,7 +169,7 @@ to reset itself, so a later reconnect does not require recompilation"
       nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; internal Erlang source buffer interaction
+;; internal low-level IDE functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun -repoxy-attach-to-buffer()
@@ -176,8 +181,36 @@ to reset itself, so a later reconnect does not require recompilation"
 
 (defun -repoxy-buffer-saved()
   "Compile the buffer if the file is part of the active repoxy project"
-  (message "REPOXY compiling buffer %s" (buffer-name (current-buffer)))
-  (repoxy-do `(compile_file ,(buffer-file-name (current-buffer)))))
+  (if (-repoxy-is-connected)
+      (let ((current-file (buffer-file-name (current-buffer))))
+        (if current-file
+            (progn
+              (message "REPOXY compiling buffer %s" (buffer-name (current-buffer)))
+              (repoxy-do `(compile_file ,(buffer-file-name (current-buffer)))))))))
+
+(defun -repoxy-is-erlang(file)
+  "Determine the type of the file:
+`t' - if file is recognized as erlang source file (excluding headers)
+`nil' - not erlang source"
+  (
+
+
+(defun -repoxy-lookup-app-dir(file)
+  "Find the application base directory (parent of src/ include/
+test/) a file. If the file is not part of an application that has
+successfully been compiled be the most recent rebar invokation,
+return `nil'."
+  (concatenate
+   'list
+   (mapcar
+    (lambda(appname-dir-pair)
+      (let ((dir (aref appname-dir-pair 1)))
+        (if (string-prefix-p
+             (expand-file-name dir)
+             (expand-file-name file))
+            dir
+          '())))
+    -repoxy-app-paths)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Emacs integration API
@@ -205,25 +238,21 @@ function to the save hooks of erlang files."
                                 (sep0 . (menu-item "Repoxy:"))
                                 (sep0a . (menu-item "--"))
                                 (repoxy-run-skel .
-                                                 (menu-item "Run"
+                                                 (menu-item "Run Repoxy Server"
                                                             repoxy-run :keys "C-c C-v c"))
                                 (repoxy-kill-skel .
-                                                 (menu-item "Kill"
+                                                 (menu-item "Kill Repoxy Server"
                                                             repoxy-kill :keys "C-c C-v d"))
                                 (repoxy-shell-skell .
-                                                 (menu-item "Shell"
+                                                 (menu-item "Open Repoxy RemShell"
                                                             repoxy-shell :keys "C-c C-v d"))
                                 (sep0b . (menu-item "--"))
 
                                 (sep1c . (menu-item "Rebar:"))
                                 (sep1d . (menu-item "--"))
                                 (refresh-skel .
-                                                 (menu-item "Refresh"
+                                                 (menu-item "clean/get-deps/compile"
                                                             repoxy-rebar-clean-compile :keys "C-c C-v r"))
-                                (sep1e . (menu-item "--"))
-
-                                (sep2 . (menu-item "Current Buffer:"))
-                                (sep2a . (menu-item "--"))
                                 )))))))
     (define-key the-map (kbd "C-c C-v c") 'repoxy-run)
     (define-key the-map (kbd "C-c C-v d") 'repoxy-kill)
@@ -256,7 +285,8 @@ Null prefix argument turns off the mode.
   (setq repoxy-result nil)
   (setq -repoxy-socket nil)
   (setq -repoxy-server-buf nil)
-  (setq -repoxy-shell-buf nil))
+  (setq -repoxy-shell-buf nil)
+  (setq -repoxy-app-paths nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; internal repoxy invokation functions
@@ -364,7 +394,6 @@ Returns the char-position of the match or nil"
           (found nil)
           (failed nil))
       (while (and (not found) (not failed))
-        (accept-process-output (get-buffer-process buffer) 1 0 :just-this-one)
         (goto-char 1)
         (if (null (setq found (re-search-forward regexp nil 't)))
             (if (= retries 0)
@@ -372,7 +401,10 @@ Returns the char-position of the match or nil"
                   (message "REPOXY expected output \"%s\" not received
                    from buffer %s within %s seconds" regexp buffer timeout)
                   (setq failed 't))
-              (setq retries (1- retries)))))
+              (progn
+                (setq retries (1- retries))
+                (sleep-for 1)))))
+      (goto-char (point-max))
       found)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -395,5 +427,5 @@ Returns the char-position of the match or nil"
 was able to parse them, then update -repoxy-result with the
 s-expression."
   (setq -repoxy-receive-buffer (concat -repoxy-receive-buffer output))
-  (if (not (ignore-errors (setq repoxy-result (read -repoxy-receive-buffer))))
+  (if (ignore-errors (setq repoxy-result (read -repoxy-receive-buffer)))
       (setq -repoxy-receive-buffer "")))

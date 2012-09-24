@@ -27,6 +27,7 @@ post_compile(Cfg, Arg) when is_list(Arg) ->
                 rebar_config:get_xconf(NewCfg, {appfile, {app_file, Arg}}),
             error_logger:info_msg("Gathering App: ~p~n", [AppName]),
             error_logger:info_msg("AppData: ~p~n", [AppData]),
+            error_logger:info_msg("AppCwd: ~p~n", [rebar_utils:get_cwd()]),
             error_logger:info_msg("EbinDir: ~p~n", [rebar_utils:ebin_dir()]),
             error_logger:info_msg("erl_opts: ~p~n", [rebar_utils:erl_opts(Cfg)]),
             AppLibDirs = rebar_config:get_local(Cfg, lib_dirs, []),
@@ -37,6 +38,8 @@ post_compile(Cfg, Arg) when is_list(Arg) ->
                                           name = AppName,
                                           config = AppData,
                                           lib_paths = LibPaths,
+                                          cwd = filename:absname(
+                                                  rebar_utils:get_cwd()),
                                           erl_opts = rebar_utils:erl_opts(Cfg)
                                          });
 

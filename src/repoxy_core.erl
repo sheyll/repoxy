@@ -15,6 +15,7 @@
          rebar/2,
          add_app_info/2,
          get_app_infos/1,
+         get_app_paths/1,
          compile_file/2,
          load_apps_into_node/1]).
 
@@ -38,7 +39,7 @@
 
 -include_lib("repoxy/include/state_m.hrl").
 
--define(REPOXY_EBIN_DIR, ".repoxy").
+-define(REPOXY_EBIN_DIR, ".repoxy_ebin").
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -68,6 +69,11 @@ load_rebar() ->
     Config = create_config(),
     start_logging(Config),
     error_logger:info_msg("...done.~n"),
+    error_logger:info_msg("Cleaning repoxy eunit directory: ~p~n",
+                          [file:del_dir(?REPOXY_EBIN_DIR)]),
+    filelib:ensure_dir(filename:join([?REPOXY_EBIN_DIR, "dummy.beam"])),
+    %% make sure that the repoxy bin dir is always first
+    code:add_patha(?REPOXY_EBIN_DIR),
     #project_cfg{rebar_cfg = Config, app_infos = []}.
 
 %%------------------------------------------------------------------------------
@@ -183,12 +189,25 @@ get_app_infos(Cfg) ->
 
 %%------------------------------------------------------------------------------
 %% @doc
+%% Return a list of app name - app base directory pairs for each loaded app.
+%% These tuples represent a reduced `#app_info' record.
+%% @end
+%%------------------------------------------------------------------------------
+-spec get_app_paths(project_cfg()) ->
+                           [{AppName :: atom(), AppBaseDir :: string()}].
+get_app_paths(#project_cfg{app_infos = AppInfos}) ->
+    [{AppName, AppBaseDir}
+     || #app_info{name = AppName, cwd = AppBaseDir} <- AppInfos].
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Compile a single file and return the compilation results. Files are compiled
+%% into a special directory.
 %% @end
 %%------------------------------------------------------------------------------
 -spec compile_file(project_cfg(), string()) ->
                                  term().
 compile_file(Cfg, File) ->
-    filelib:ensure_dir(filename:join([?REPOXY_EBIN_DIR, "dummy.beam"])),
     compile:file(
       File,
       add_repoxy_erl_opts(
@@ -238,7 +257,8 @@ create_config() ->
          fun repoxy_rebar_cfg:add_script_name/1,
          fun repoxy_rebar_cfg:load_project_config/1,
          fun repoxy_rebar_cfg:add_proj_dir/1,
-         fun repoxy_rebar_cfg:add_repoxy_plugin/1
+         fun repoxy_rebar_cfg:add_repoxy_plugin/1,
+         fun repoxy_rebar_cfg:add_keep_going/1
         ]).
 
 %%------------------------------------------------------------------------------
@@ -259,6 +279,27 @@ add_repoxy_erl_opts(Opts) ->
 %%------------------------------------------------------------------------------
 %% @private
 %%------------------------------------------------------------------------------
-lookup_app_erl_opts(File, Cfg) ->
-    %% TODO
-    [].
+lookup_app_erl_opts(File, #project_cfg{app_infos =  AIs}) ->
+    case get_app_info_for_file(File, AIs) of
+        {ok, #app_info{erl_opts = EOs}} ->
+            EOs;
+        _ ->
+            []
+    end.
+
+%%------------------------------------------------------------------------------
+%% @private
+%%------------------------------------------------------------------------------
+-spec get_app_info_for_file(string(), [#app_info{}]) ->
+                                   {ok, #app_info{}} | error.
+get_app_info_for_file(File, AppInfos) ->
+    AbsFile = filename:absname(File),
+    case
+        [AI || AI = #app_info{cwd = AD} <- AppInfos,
+               string:str(AbsFile, AD) =:= 1]
+    of
+        [A] ->
+            {ok, A};
+        _ ->
+            error
+    end.

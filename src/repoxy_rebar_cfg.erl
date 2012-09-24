@@ -17,7 +17,8 @@
          add_script_name/1,
          load_project_config/1,
          add_proj_dir/1,
-         add_repoxy_plugin/1
+         add_repoxy_plugin/1,
+         add_keep_going/1
         ]).
 
 -export_type([cfg/0]).
@@ -109,3 +110,11 @@ add_proj_dir(Cfg) ->
 %%------------------------------------------------------------------------------
 add_repoxy_plugin(Cfg) ->
     rebar_config:set(Cfg, plugins, [repoxy_rebar_plugin]).
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Add `keep_going=true' to a rebar config.
+%% @end
+%%------------------------------------------------------------------------------
+add_keep_going(Cfg) ->
+    rebar_config:set_xconf(Cfg, keep_going, true).
