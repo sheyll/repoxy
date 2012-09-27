@@ -11,6 +11,17 @@
   "Shell command that is executed when 'repoxy-shell' is called.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Internal global variables.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defvar -repoxy-receive-buffer "")
+(defvar repoxy-result nil)
+(defvar -repoxy-socket nil)
+(defvar -repoxy-server-buf nil)
+(defvar -repoxy-shell-buf nil)
+(defvar -repoxy-app-paths nil)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Repoxy High-Level API
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -114,7 +125,7 @@ reseting the project and recompiling everything."
   (if (-repoxy-is-connected)
       (error "REPOXY already connected"))
   (setq -repoxy-receive-buffer nil)
-  (setq -repoxy-result nil)
+  (setq repoxy-result nil)
   (let ((process-adaptive-read-buffering 't))
     (if (not (ignore-errors
                (setq -repoxy-socket
@@ -134,7 +145,7 @@ reseting the project and recompiling everything."
 to reset itself, so a later reconnect does not require recompilation"
   (interactive)
   (setq -repoxy-receive-buffer nil)
-  (setq -repoxy-result nil)
+  (setq repoxy-result nil)
   (setq -repoxy-app-paths nil)
   (if (not (-repoxy-is-connected))
       (error "REPOXY not connected"))
@@ -192,8 +203,10 @@ to reset itself, so a later reconnect does not require recompilation"
   "Determine the type of the file:
 `t' - if file is recognized as erlang source file (excluding headers)
 `nil' - not erlang source"
-  (
-
+ (if (-repoxy-lookup-app-dir file)
+     (case (file-name-extension file)
+       ("erl" 't)
+       ("hrl" 't))))
 
 (defun -repoxy-lookup-app-dir(file)
   "Find the application base directory (parent of src/ include/
@@ -257,7 +270,6 @@ function to the save hooks of erlang files."
     (define-key the-map (kbd "C-c C-v c") 'repoxy-run)
     (define-key the-map (kbd "C-c C-v d") 'repoxy-kill)
     (define-key the-map (kbd "C-c C-v s") 'repoxy-shell)
-
     (define-key the-map (kbd "C-c C-v r") 'repoxy-rebar-clean-compile)
     the-map)
   "Repoxy minor mode keymap.")
