@@ -10,6 +10,11 @@
 (defvar repoxy-shell-command "erl -sname repoxy_emacs_shell2 -setcookie repoxy -remsh repoxy@localhost"
   "Shell command that is executed when 'repoxy-shell' is called.")
 
+(defvar repoxy-open-non-existant-tests-or-impl nil
+  "When set to non-nil repoxy opens a non-existant file when
+  toggling between erlang impl-source and test-source file via
+  `repoxy-toggle-impl-test'")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Internal global variables.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -180,6 +185,52 @@ to reset itself, so a later reconnect does not require recompilation"
       nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; IDE functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun repoxy-toggle-impl-test()
+ "Toggle between implementation source and test source of an erlang module.
+  Rely on the standard directory layout.
+  If the current buffer contains a file called A_test.erl or A_tests.erl,
+  open ../src/A.erl, otherwise open ../test/A_tests.erl or ,,/test/A_test.erl.
+  Do nothing if the file does not exists."
+ (interactive)
+ (if (buffer-file-name (current-buffer))
+  (let* ((file-and-dir (expand-file-name (buffer-file-name (current-buffer))))
+         (dir (file-name-directory file-and-dir))
+         (file (file-name-nondirectory file-and-dir))
+         (module (file-name-sans-extension file)))
+                                        ; find out if we are in source or test folder
+    (if (and (string-match-p "test/$" dir)
+             (string-match-p "_tests?$" module))
+        (let* ((test-suffix-index (string-match "_tests?$" module))
+               (impl (substring module 0 test-suffix-index))
+               (pot-impl-dir (expand-file-name (concat dir
+                                                       (file-name-as-directory "..")
+                                                       (file-name-as-directory "src"))))
+               (existing-impl-file (car (directory-files pot-impl-dir 't
+                                                         (concat "^" impl ".erl$"))))
+               (impl-file (or existing-impl-file (concat pot-impl-dir impl ".erl"))))
+                                        ; in test folder, in a file called impl_tests?,erl
+          (if (or (file-readable-p impl-file)
+                  repoxy-open-non-existant-tests-or-impl)
+              (find-file impl-file)
+            (message "REPOXY file %s not found, set repoxy-open-non-existant-tests-or-impl to non-nil to open anyway" impl-file)))
+      ; ELSE not in test/ and not _test(s).erl open. In impl file?
+      (if (string-match-p "src/$" dir)
+          (let* ((pot-test-dir (expand-file-name (concat dir
+                                                         (file-name-as-directory "..")
+                                                         (file-name-as-directory "test"))))
+                 (existing-test-file (car (directory-files pot-test-dir 't
+                                                           (concat "^" module "_tests?.erl$"))))
+                 (test-file (or existing-test-file (concat pot-test-dir module "_tests.erl"))))
+                                        ; in test folder, in a file called impl_tests?,erl
+          (if (or (file-readable-p test-file)
+                  repoxy-open-non-existant-tests-or-impl)
+              (find-file test-file)
+            (message "REPOXY file %s not found, set repoxy-open-non-existant-tests-or-impl to non-nil to open anyway" test-file))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; internal low-level IDE functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -247,9 +298,8 @@ function to the save hooks of erlang files."
                      (keymap
                       (repoxy "Repoxy" .
                                (keymap
-
-                                (sep0 . (menu-item "Repoxy:"))
-                                (sep0a . (menu-item "--"))
+                                (sep1 . (menu-item "Repoxy:"))
+                                (sep2 . (menu-item "--"))
                                 (repoxy-run-skel .
                                                  (menu-item "Run Repoxy Server"
                                                             repoxy-run :keys "C-c C-v c"))
@@ -259,18 +309,24 @@ function to the save hooks of erlang files."
                                 (repoxy-shell-skell .
                                                  (menu-item "Open Repoxy RemShell"
                                                             repoxy-shell :keys "C-c C-v d"))
-                                (sep0b . (menu-item "--"))
+                                (sep3 . (menu-item "--"))
 
-                                (sep1c . (menu-item "Rebar:"))
-                                (sep1d . (menu-item "--"))
+                                (sep4 . (menu-item "Rebar:"))
+                                (sep5 . (menu-item "--"))
                                 (refresh-skel .
                                                  (menu-item "clean/get-deps/compile"
                                                             repoxy-rebar-clean-compile :keys "C-c C-v r"))
+                                (sep6 . (menu-item "--"))
+                                (sep7 . (menu-item "Emacs:"))
+                                (toggle-impl-test-skel .
+                                                 (menu-item "Toggle between test/impl"
+                                                            repoxy-toggle-impl-test :keys "<F5>"))
                                 )))))))
     (define-key the-map (kbd "C-c C-v c") 'repoxy-run)
     (define-key the-map (kbd "C-c C-v d") 'repoxy-kill)
     (define-key the-map (kbd "C-c C-v s") 'repoxy-shell)
     (define-key the-map (kbd "C-c C-v r") 'repoxy-rebar-clean-compile)
+    (define-key the-map (kbd "<f5>") 'repoxy-toggle-impl-test)
     the-map)
   "Repoxy minor mode keymap.")
 
