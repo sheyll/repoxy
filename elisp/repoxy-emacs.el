@@ -83,7 +83,7 @@ recursivly for a file called 'repoxy'."
         (-repoxy-run-in-terminal "./repoxy" 't))
   (if (-repoxy-wait-for-output
        -repoxy-server-buf
-       (regexp-qoute "Waiting for client.")
+       (regexp-quote "Waiting for client.")
        10)
       (message "REPOXY repoxy started")
     (error "REPOXY start server failed")))
@@ -195,40 +195,40 @@ to reset itself, so a later reconnect does not require recompilation"
   open ../src/A.erl, otherwise open ../test/A_tests.erl or ,,/test/A_test.erl.
   Do nothing if the file does not exists."
  (interactive)
- (if (buffer-file-name (current-buffer))
-  (let* ((file-and-dir (expand-file-name (buffer-file-name (current-buffer))))
-         (dir (file-name-directory file-and-dir))
-         (file (file-name-nondirectory file-and-dir))
-         (module (file-name-sans-extension file)))
+ (let ((file-and-dir (-repoxy-buffer-erl-source)))
+   (if file-and-dir
+       (let* ((dir (file-name-directory file-and-dir))
+              (file (file-name-nondirectory file-and-dir))
+              (module (file-name-sans-extension file)))
                                         ; find out if we are in source or test folder
-    (if (and (string-match-p "test/$" dir)
-             (string-match-p "_tests?$" module))
-        (let* ((test-suffix-index (string-match "_tests?$" module))
-               (impl (substring module 0 test-suffix-index))
-               (pot-impl-dir (expand-file-name (concat dir
-                                                       (file-name-as-directory "..")
-                                                       (file-name-as-directory "src"))))
-               (existing-impl-file (car (directory-files pot-impl-dir 't
-                                                         (concat "^" impl ".erl$"))))
-               (impl-file (or existing-impl-file (concat pot-impl-dir impl ".erl"))))
+         (if (and (string-match-p "test/$" dir)
+                  (string-match-p "_tests?$" module))
+             (let* ((test-suffix-index (string-match "_tests?$" module))
+                    (impl (substring module 0 test-suffix-index))
+                    (pot-impl-dir (expand-file-name (concat dir
+                                                            (file-name-as-directory "..")
+                                                            (file-name-as-directory "src"))))
+                    (existing-impl-file (car (directory-files pot-impl-dir 't
+                                                              (concat "^" impl ".erl$"))))
+                    (impl-file (or existing-impl-file (concat pot-impl-dir impl ".erl"))))
                                         ; in test folder, in a file called impl_tests?,erl
-          (if (or (file-readable-p impl-file)
-                  repoxy-open-non-existant-tests-or-impl)
-              (find-file impl-file)
-            (message "REPOXY file %s not found, set repoxy-open-non-existant-tests-or-impl to non-nil to open anyway" impl-file)))
-      ; ELSE not in test/ and not _test(s).erl open. In impl file?
-      (if (string-match-p "src/$" dir)
-          (let* ((pot-test-dir (expand-file-name (concat dir
-                                                         (file-name-as-directory "..")
-                                                         (file-name-as-directory "test"))))
-                 (existing-test-file (car (directory-files pot-test-dir 't
-                                                           (concat "^" module "_tests?.erl$"))))
-                 (test-file (or existing-test-file (concat pot-test-dir module "_tests.erl"))))
+               (if (or (file-readable-p impl-file)
+                       repoxy-open-non-existant-tests-or-impl)
+                   (find-file impl-file)
+                 (message "REPOXY file %s not found, set repoxy-open-non-existant-tests-or-impl to non-nil to open anyway" impl-file)))
+                                        ; ELSE not in test/ and not _test(s).erl open. In impl file?
+           (if (string-match-p "src/$" dir)
+               (let* ((pot-test-dir (expand-file-name (concat dir
+                                                              (file-name-as-directory "..")
+                                                              (file-name-as-directory "test"))))
+                      (existing-test-file (car (directory-files pot-test-dir 't
+                                                                (concat "^" module "_tests?.erl$"))))
+                      (test-file (or existing-test-file (concat pot-test-dir module "_tests.erl"))))
                                         ; in test folder, in a file called impl_tests?,erl
-          (if (or (file-readable-p test-file)
-                  repoxy-open-non-existant-tests-or-impl)
-              (find-file test-file)
-            (message "REPOXY file %s not found, set repoxy-open-non-existant-tests-or-impl to non-nil to open anyway" test-file))))))))
+                 (if (or (file-readable-p test-file)
+                         repoxy-open-non-existant-tests-or-impl)
+                     (find-file test-file)
+                   (message "REPOXY file %s not found, set repoxy-open-non-existant-tests-or-impl to non-nil to open anyway" test-file)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; internal low-level IDE functions
@@ -236,27 +236,52 @@ to reset itself, so a later reconnect does not require recompilation"
 
 (defun -repoxy-attach-to-buffer()
   "Add a save hook and enable the repoxy minor mode."
-  (message "REPOXY attaching to buffer %s" (buffer-name (current-buffer)))
-  (repoxy-mode)
-  (add-hook 'after-save-hook
-	    (function -repoxy-buffer-saved)))
+  (if (-repoxy-buffer-erl-source)
+      (progn
+        (message "REPOXY attaching to buffer %s" (buffer-name (current-buffer)))
+        (repoxy-mode)
+        (add-hook 'after-save-hook
+                  (function -repoxy-buffer-saved)))))
 
 (defun -repoxy-buffer-saved()
   "Compile the buffer if the file is part of the active repoxy project"
   (if (-repoxy-is-connected)
-      (let ((current-file (buffer-file-name (current-buffer))))
+      (let ((current-file (-repoxy-buffer-erl-source)))
         (if current-file
             (progn
               (message "REPOXY compiling buffer %s" (buffer-name (current-buffer)))
               (repoxy-do `(compile_file ,(buffer-file-name (current-buffer)))))))))
 
-(defun -repoxy-is-erlang(file)
+(defun -repoxy-buffer-erl-source()
+  "Return the expanded buffer file name, if the file opened in
+  curren buffer is in a caconical source directory and ends with
+  \".erl\""
+  (let ((file-and-dir-short (buffer-file-name (current-buffer))))
+    (if file-and-dir-short
+        (let* ((file-and-dir (expand-file-name file-and-dir-short))
+               (dir (file-name-directory file-and-dir))
+               (file (file-name-nondirectory file-and-dir)))
+          (if (or ; either source or test:
+               (and
+                (string-match-p "src/$" dir)
+                (string-match-p ".erl$" file))
+               (and
+                (string-match-p "test/$" dir)
+                (string-match-p "_tests?,erl$" file)))
+              file-and-dir
+            (prog
+             (message "REPOXY %s not accepted as erlang source." file-and-dir-short)
+             nil)))
+      nil)))
+
+(defun -repoxy-erl-source-of-loaded-app(file)
   "Determine the type of the file:
 `t' - if file is recognized as erlang source file (excluding headers)
 `nil' - not erlang source"
  (if (-repoxy-lookup-app-dir file)
      (case (file-name-extension file)
        ("erl" 't)
+       ("app.src" 't)
        ("hrl" 't))))
 
 (defun -repoxy-lookup-app-dir(file)
