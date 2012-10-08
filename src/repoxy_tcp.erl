@@ -123,11 +123,10 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 process_incoming_data(Data, State) ->
     reactivate_socket(State),
     until_request_complete(
-      log_result(
-        send_response(
-          process_request(
-            try_to_parse(
-              concat_collected_and_new(Data, State)))))).
+      send_response(
+        process_request(
+          try_to_parse(
+            concat_collected_and_new(Data, State))))).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -144,24 +143,6 @@ until_request_complete({{ok, [close]}, _, State}) ->
     accepting(accept, State);
 until_request_complete({{ok, _Req}, _Reply, State}) ->
     {next_state, connected, State#state{collected_data = []}}.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-log_result(In = {{ok, Req}, Reply, State}) ->
-    LogMsg = lists:flatten(
-               io_lib:format(
-                 "Processed request ~p from ~w with result ~p~n",
-                 [Req, State#state.csock, Reply])),
-    error_logger:info_msg(LogMsg),
-    In;
-log_result(In = {_Err, State}) ->
-    LogMsg = lists:flatten(
-               io_lib:format(
-                 "Incomplete request \"~s\" from ~w~n",
-                 [State#state.collected_data, State#state.csock])),
-    error_logger:info_msg(LogMsg),
-    In.
 
 %%--------------------------------------------------------------------
 %% @private

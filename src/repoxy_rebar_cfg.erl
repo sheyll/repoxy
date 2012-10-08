@@ -74,7 +74,7 @@ add_vsn_cache(Cfg) ->
 %% @end
 %%------------------------------------------------------------------------------
 add_log_level(Cfg) ->
-    rebar_config:set_global(Cfg, verbose, 2).
+    rebar_config:set_global(Cfg, verbose, 1).
 
 %%------------------------------------------------------------------------------
 %% @doc

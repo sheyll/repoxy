@@ -8,3 +8,6 @@
 deps/*
 ebin/*
 .eunit/*
+repoxy
+src/repoxy_sexp_parser.erl
+src/repoxy_sexp_scanner.erl

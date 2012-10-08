@@ -25,6 +25,8 @@
 (defvar -repoxy-server-buf nil)
 (defvar -repoxy-shell-buf nil)
 (defvar -repoxy-app-paths nil)
+(defvar -repoxy-dir nil)
+(defvar -repoxy-compilation-results nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Repoxy High-Level API
@@ -59,12 +61,19 @@ repoxy."
   "Flushe the modules and applications currently contained in the
 node and triggers rebar to compile all"
   (interactive)
-  (repoxy-do '(reset))
-  (repoxy-do '(rebar clean))
-  (repoxy-do '(rebar "get-deps"))
-  (repoxy-do '(rebar compile))
-  (repoxy-do '(load_apps_into_node))
-  (setq -repoxy-app-paths (repoxy-do '(get_app_paths))))
+  (if (-repoxy-is-connected)
+    (with-current-buffer -repoxy-server-buf
+      (let ((inhibit-read-only 't)
+            (select-window (or (get-buffer-window (current-buffer))
+                               (display-buffer (current-buffer)))))
+        (setq -repoxy-compilation-results nil)
+        (kill-region (point-min) (point-max))
+        (repoxy-do '(reset))
+        (repoxy-do '(rebar clean))
+        (repoxy-do '(rebar "get-deps"))
+        (repoxy-do '(rebar compile) 't)
+        (repoxy-do '(load_apps_into_node))
+        (setq -repoxy-app-paths (repoxy-do '(get_app_paths)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Repoxy invokation API
@@ -79,22 +88,34 @@ recursivly for a file called 'repoxy'."
   (interactive)
   (if (-repoxy-is-server-running)
       (error "REPOXY already running"))
-  (setq -repoxy-server-buf
-        (-repoxy-run-in-terminal "./repoxy" 't))
-  (if (-repoxy-wait-for-output
-       -repoxy-server-buf
-       (regexp-quote "Waiting for client.")
-       10)
-      (message "REPOXY repoxy started")
-    (error "REPOXY start server failed")))
+
+  (let ((buf (get-buffer-create "*repoxy-server*")))
+    (with-current-buffer buf
+      (select-window (or (get-buffer-window (current-buffer))
+                         (display-buffer (current-buffer))))
+      (setq default-directory (-repoxy-find-project-base-dir))
+      (start-process "*repoxy-server*" buf (concat default-directory "repoxy"))
+      (if (-repoxy-wait-for-output
+           buf
+           (regexp-quote "Waiting for client.")
+           10)
+          (progn
+            (setq -repoxy-server-buf buf)
+            (setq buffer-read-only 't)
+            (setq -repoxy-dir default-directory)
+            (message "REPOXY repoxy started"))
+        (progn
+          (-repoxy-kill-buffer buf)
+          (error "REPOXY start server failed"))))))
 
 (defun repoxy-kill-server()
   "Stop the repoxy process."
   (interactive)
   (if (not (-repoxy-is-server-running))
       (error "REPOXY not running"))
-  (-repoxy-kill-terminal -repoxy-server-buf)
+  (-repoxy-kill-buffer -repoxy-server-buf)
   (setq -repoxy-server-buf nil)
+  (setq -repoxy-dir nil)
   (message "REPOXY repoxy stopped"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -116,7 +137,7 @@ recursivly for a file called 'repoxy'."
   (interactive)
   (if (not (-repoxy-is-shell-running))
       (error "REPOXY shell not running"))
-  (-repoxy-kill-terminal -repoxy-shell-buf)
+  (-repoxy-kill-buffer -repoxy-shell-buf)
   (setq -repoxy-shell-buf nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -136,7 +157,7 @@ reseting the project and recompiling everything."
                (setq -repoxy-socket
                      (open-network-stream
                       (concat "repoxy-server-" repoxy-host)
-                      'nil
+                      nil
                       repoxy-host
                       5678))))
         (error "REPOXY cannot connect to %s" repoxy-host))
@@ -158,28 +179,34 @@ to reset itself, so a later reconnect does not require recompilation"
   (setq -repoxy-socket nil)
   (message "REPOXY disconnected from server"))
 
-(defun repoxy-do (request)
-  "Send the request to repoxy returning the result. Request is an s-expression."
+(defun repoxy-do (request &optional clean-buffer)
+  "Send the request to repoxy returning the result. Request is an
+s-expression. If the optional clean-buffer parameter is non-nil
+the repoxy server output buffer is cleared before running the
+request."
   (interactive)
   (if (-repoxy-is-connected)
-      (progn
-        (setq repoxy-result nil)
-        (process-send-string -repoxy-socket (prin1-to-string request))
-        (if
-            (let ((inhibit-quit 't))
-              (while (and (not repoxy-result) (not quit-flag))
-                (accept-process-output -repoxy-socket 1 0 'just-this-one))
-              (let ((interrupted quit-flag))
-                (setq quit-flag nil)
-                (not interrupted)))
+      (with-current-buffer -repoxy-server-buf
+        (let ((inhibit-read-only 't))
+          (if clean-buffer
+              (kill-region (point-min) (point-max)))
+          (setq repoxy-result nil)
+          (process-send-string -repoxy-socket (prin1-to-string request))
+          (if
+              (let ((inhibit-quit 't))
+                (while (and (not repoxy-result) (not quit-flag))
+                  (accept-process-output -repoxy-socket 1))
+                (let ((interrupted quit-flag))
+                  (setq quit-flag nil)
+                  (not interrupted)))
+              (progn
+                (message "REPOXY request successful")
+                repoxy-result)
             (progn
-              (message "REPOXY request successful")
-              repoxy-result)
-          (progn
-            (setq quit-flag 'nil)
-            (message "REPOXY interrupted during request. Reconnecting")
-            (repoxy-disconnect)
-            (repoxy-connect))))
+              (setq quit-flag 'nil)
+              (message "REPOXY interrupted during request. Reconnecting")
+              (repoxy-disconnect)
+              (repoxy-connect)))))
     (progn
       (error "REPOXY cannot execute request: not connected")
       nil)))
@@ -192,7 +219,7 @@ to reset itself, so a later reconnect does not require recompilation"
  "Toggle between implementation source and test source of an erlang module.
   Rely on the standard directory layout.
   If the current buffer contains a file called A_test.erl or A_tests.erl,
-  open ../src/A.erl, otherwise open ../test/A_tests.erl or ,,/test/A_test.erl.
+  open ../src/A.erl, otherwise open ../test/A_tests.erl or ../test/A_test.erl.
   Do nothing if the file does not exists."
  (interactive)
  (let ((file-and-dir (-repoxy-buffer-erl-source)))
@@ -248,28 +275,36 @@ to reset itself, so a later reconnect does not require recompilation"
   (if (-repoxy-is-connected)
       (let ((current-file (-repoxy-buffer-erl-source)))
         (if current-file
-            (progn
-              (message "REPOXY compiling buffer %s" (buffer-name (current-buffer)))
-              (repoxy-do `(compile_file ,(buffer-file-name (current-buffer)))))))))
+            (repoxy-compile-file current-file)))))
+
+;; TODO Move:
+(defun repoxy-compile-file(file)
+  "Compile a file via repoxy and set the global variable -repoxy-compilation-results to the compilation result."
+  (message "REPOXY compiling %s" file)
+  (setq -repoxy-compilation-results (repoxy-do `(compile_file ,file) 't)))
 
 (defun -repoxy-buffer-erl-source()
   "Return the expanded buffer file name, if the file opened in
   curren buffer is in a caconical source directory and ends with
-  \".erl\""
+  \".erl\". The file must also be part of the current project."
   (let ((file-and-dir-short (buffer-file-name (current-buffer))))
     (if file-and-dir-short
         (let* ((file-and-dir (expand-file-name file-and-dir-short))
                (dir (file-name-directory file-and-dir))
                (file (file-name-nondirectory file-and-dir)))
-          (if (or ; either source or test:
-               (and
-                (string-match-p "src/$" dir)
-                (string-match-p ".erl$" file))
-               (and
-                (string-match-p "test/$" dir)
-                (string-match-p "_tests?,erl$" file)))
+          (if (and
+               (or ; if -repoxy-dir is defined, dir must start with -repoxy-dir
+                (null -repoxy-dir)
+                (string-prefix-p -repoxy-dir dir)) ; file must be part of the current project
+               (or ; either source or test:
+                (and
+                 (string-match-p "src/$" dir)
+                 (string-match-p ".erl$" file))
+                (and
+                 (string-match-p "test/$" dir)
+                 (string-match-p "_tests?.erl$" file))))
               file-and-dir
-            (prog
+            (progn
              (message "REPOXY %s not accepted as erlang source." file-and-dir-short)
              nil)))
       nil)))
@@ -309,8 +344,7 @@ return `nil'."
   "Create all internal global variables and add the compile
 function to the save hooks of erlang files."
   (interactive)
-  (-repoxy-init-globals)
-  (add-hook 'erlang-mode-hook '-repoxy-attach-to-buffer))
+  (add-hook 'find-file-hook '-repoxy-attach-to-buffer))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Minor mode and menu definition
@@ -369,19 +403,6 @@ Null prefix argument turns off the mode.
   -repoxy-mode-map)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; internal global state functions
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defun -repoxy-init-globals()
-  "Set all global variables to nil"
-  (setq -repoxy-receive-buffer "")
-  (setq repoxy-result nil)
-  (setq -repoxy-socket nil)
-  (setq -repoxy-server-buf nil)
-  (setq -repoxy-shell-buf nil)
-  (setq -repoxy-app-paths nil))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; internal repoxy invokation functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -401,65 +422,40 @@ Null prefix argument turns off the mode.
 ;; internal buffer/process functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun -repoxy-run-in-terminal(command &optional non-interactive)
+(defun -repoxy-run-in-terminal(command)
   "Execute a command string an emacs terminal window using /bin/bash.
-If the optional argument non-interactive is not nil the command
-will be run also with bash, and interaction with the
-program is not possible.
 
 The program is always executed with the project base dir as
 current working directory."
   (let* ((default-directory (-repoxy-find-project-base-dir))
-         (result-buf
-          (if non-interactive
-              (let* ((proc (start-process-shell-command
-                            "*repoxy-non-interactive*" "*repoxy-non-interactive*"
-                            command))
-                     (buf (process-buffer proc)))
-                (with-current-buffer buf
-                  (select-window (or (get-buffer-window buf)
-                                     (display-buffer buf)))
-                  buf))
-            (let ((buf (term "/bin/bash")))
-              (with-current-buffer buf
-                (select-window (or (get-buffer-window buf)
-                                   (display-buffer buf)))
-                (term-send-raw-string (concat "cd " default-directory
-                                              " && " command "\n")))
-              buf))))
-    (if result-buf
-        (progn
-          (sit-for 1)
-          (if (not (-repoxy-terminal-live-p result-buf))
-              (error "REPOXY starting \"%s\" in terminal failed" command))
-          (set-process-sentinel
-           (get-buffer-process result-buf)
-           (lambda (proc reason)
-             (message "REPOXY sentinel for %s received %s" proc reason)))))
-    result-buf))
+         (result-buf (term "/bin/bash")))
+    (with-current-buffer result-buf
+      (select-window (or (get-buffer-window result-buf)
+                         (display-buffer result-buf)))
+      (term-send-raw-string (concat "cd " default-directory
+                                    " && " command "\n"))
+      result-buf)))
 
 (defun -repoxy-find-project-base-dir()
   "Return the first parent directory of the directory containing
   the current buffer file, that contains the repoxy executable."
   (let* ((current-depth 3)
          (current-file (buffer-file-name (current-buffer)))
-         (current-dir
+         (base-dir nil)
+         (path-to-repoxy
           (if current-file
-              (file-name-directory
-               (expand-file-name current-file))
-            (expand-file-name default-directory)))
-         (path-to-repoxy nil))
-    (while
-        (null
-         (setq path-to-repoxy
-               (directory-files current-dir :full-name "^repoxy$")))
-      (if (= current-depth 0)
-          (error "REPOXY cannot find repoxy executable"))
-      (setq current-dir
-            (expand-file-name
-             (concat current-dir (file-name-as-directory ".."))))
-      (setq current-depth (1- current-depth)))
-    (file-name-directory (car path-to-repoxy))))
+              (file-name-directory (expand-file-name current-file))
+            (expand-file-name default-directory))))
+    (while (and (>= current-depth 0)
+                (null base-dir))
+      (if (directory-files path-to-repoxy :full-name "^repoxy$")
+          (setq base-dir path-to-repoxy)
+        (progn
+          (setq path-to-repoxy
+                (expand-file-name
+                 (concat path-to-repoxy (file-name-as-directory ".."))))
+          (setq current-depth (1- current-depth)))))
+    base-dir))
 
 (defun -repoxy-terminal-live-p(buffer)
   "Return non-nil if the buffer and the process associated to the buffer are live."
@@ -469,7 +465,7 @@ current working directory."
    (get-buffer-process buffer)
    (process-live-p (get-buffer-process buffer))))
 
-(defun -repoxy-kill-terminal(buffer)
+(defun -repoxy-kill-buffer(buffer)
   "Kill the process associated to a buffern and kill the buffer."
   (if (get-buffer-process buffer)
       (kill-process buffer))
@@ -520,5 +516,6 @@ Returns the char-position of the match or nil"
 was able to parse them, then update -repoxy-result with the
 s-expression."
   (setq -repoxy-receive-buffer (concat -repoxy-receive-buffer output))
+  (message "REPOXY received output %s" output)
   (if (ignore-errors (setq repoxy-result (read -repoxy-receive-buffer)))
       (setq -repoxy-receive-buffer "")))

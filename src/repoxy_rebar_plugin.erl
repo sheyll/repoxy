@@ -25,15 +25,9 @@ post_compile(Cfg, Arg) when is_list(Arg) ->
             {NewCfg, _} = rebar_app_utils:app_name(Cfg, Arg),
             {AppName, AppData} =
                 rebar_config:get_xconf(NewCfg, {appfile, {app_file, Arg}}),
-            error_logger:info_msg("Gathering App: ~p~n", [AppName]),
-            error_logger:info_msg("AppData: ~p~n", [AppData]),
-            error_logger:info_msg("AppCwd: ~p~n", [rebar_utils:get_cwd()]),
-            error_logger:info_msg("EbinDir: ~p~n", [rebar_utils:ebin_dir()]),
-            error_logger:info_msg("erl_opts: ~p~n", [rebar_utils:erl_opts(Cfg)]),
             AppLibDirs = rebar_config:get_local(Cfg, lib_dirs, []),
             LibPaths = [rebar_utils:ebin_dir()|
                         expand_lib_dirs(AppLibDirs, rebar_utils:get_cwd(), [])],
-            error_logger:info_msg("AppLibDirs: ~p~n", [LibPaths]),
             repoxy_facade:app_compiled(#app_info{
                                           name = AppName,
                                           config = AppData,
@@ -44,10 +38,10 @@ post_compile(Cfg, Arg) when is_list(Arg) ->
                                          });
 
        true ->
-            error_logger:info_msg("Skipping: ~p~n", [Arg])
+            ok
     end;
 post_compile(_Cfg, Arg) ->
-    error_logger:info_msg("Skipping: ~p~n", [Arg]).
+    ok.
 
 %%------------------------------------------------------------------------------
 %% @private

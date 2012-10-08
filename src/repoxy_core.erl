@@ -60,7 +60,6 @@ empty_prj_cfg() ->
 -spec load_rebar() ->
                         project_cfg().
 load_rebar() ->
-    error_logger:info_msg("Starting rebar ...~n"),
     ok = application:load(rebar),
     case crypto:start() of
         ok -> ok;
@@ -68,9 +67,7 @@ load_rebar() ->
     end,
     Config = create_config(),
     start_logging(Config),
-    error_logger:info_msg("...done.~n"),
-    error_logger:info_msg("Cleaning repoxy eunit directory: ~p~n",
-                          [file:del_dir(?REPOXY_EBIN_DIR)]),
+    file:del_dir(?REPOXY_EBIN_DIR),
     filelib:ensure_dir(filename:join([?REPOXY_EBIN_DIR, "dummy.beam"])),
     %% make sure that the repoxy bin dir is always first
     code:add_patha(?REPOXY_EBIN_DIR),
@@ -99,10 +96,8 @@ backup_node() ->
 restore_node(#node_backup{apps_loaded = OldAppsLoaded,
                           code_path = OldCodePath,
                           loaded_modules = OldModules}) ->
-    error_logger:info_msg("~n  *** RESETTING NODE ***~n"),
     [try
          AppName = element(1, A),
-         error_logger:info_msg("Unloading ~p~n", [AppName]),
          application:stop(AppName),
          application:unload(AppName)
      catch
@@ -111,24 +106,20 @@ restore_node(#node_backup{apps_loaded = OldAppsLoaded,
      end
      || A <- application:loaded_applications(),
         not lists:member(A, OldAppsLoaded)],
-
-    error_logger:info_msg("Resetting code_path to ~p~n", [OldCodePath]),
     code:set_path(OldCodePath),
 
     [begin
          case string:str(atom_to_list(Mod), "repoxy") of
              0 ->
-                 error_logger:info_msg("Purging ~p~n", [Mod]),
                  code:delete(Mod),
                  code:purge(Mod);
              _ ->
-                 error_logger:info_msg("NOT Purging ~p~n", [Mod])
+                 ignore
          end
      end
      || M = {Mod, _} <- code:all_loaded(),
         not lists:member(M, OldModules)],
-
-    error_logger:info_msg("Successfully resetted node.~n"),
+    error_logger:info_msg("~n  *** NODE RESETTED ***~n"),
     ok.
 
 %%------------------------------------------------------------------------------
@@ -201,17 +192,37 @@ get_app_paths(#project_cfg{app_infos = AppInfos}) ->
 
 %%------------------------------------------------------------------------------
 %% @doc
-%% Compile a single file and return the compilation results. Files are compiled
-%% into a special directory.
+%% Compile and loada single file and return the compilation results. Files are
+%% compiled into a special directory and loaded after successful compilation.
 %% @end
 %%------------------------------------------------------------------------------
 -spec compile_file(project_cfg(), string()) ->
                                  term().
 compile_file(Cfg, File) ->
-    compile:file(
-      File,
-      add_repoxy_erl_opts(
-        lookup_app_erl_opts(File, Cfg))).
+    format_compilation_result(
+      compile_file_and_load(File,
+                            add_repoxy_erl_opts(
+                              lookup_app_erl_opts(File, Cfg)))).
+
+%%
+%%    case compile:file(File, ErlOpts) of
+%%        {ok, ModuleName, Warnings} ->
+%%            code:purge(ModuleName),
+%%            code:delete(ModuleName),
+%%            code:purge(ModuleName),
+%%            case code:load_abs(filename:join(?REPOXY_EBIN_DIR,
+%%                                             atom_to_list(ModuleName))) of
+%%                {module, ModuleName} ->
+%%                    {ok, Warnings};
+%%
+%%                {error, What} ->
+%%                    error_logger:error_msg("compile_file %w failed to load module: %w", [File, What]),
+%%                    {error, Warnings, []}
+%%            end;
+%%
+%%        {error, Errors, Warnings} ->
+%%            {error, Errors, Warnings}
+%%    end.
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -233,15 +244,9 @@ load_apps_into_node(Cfg) ->
 %%------------------------------------------------------------------------------
 %% @private
 %%------------------------------------------------------------------------------
-load_app_into_node(#app_info{
-                      name = Name,
-                      lib_paths = LibPaths
-                     }) ->
-    error_logger:info_msg("Loading ~p~n.", [Name]),
-    error_logger:info_msg("Adding paths: ~p~n.", [code:add_pathsa(LibPaths)]),
+load_app_into_node(#app_info{name = Name, lib_paths = LibPaths}) ->
+    code:add_pathsa(LibPaths),
     Loaded = application:load(Name),
-    error_logger:info_msg("Loading application: ~p~n.", [Loaded]),
-    error_logger:info_msg("Done loading ~p~n~n.", [Name]),
     {Name, Loaded}.
 
 %%------------------------------------------------------------------------------
@@ -274,6 +279,7 @@ add_repoxy_erl_opts(Opts) ->
     [debug_info,
      verbose,
      report,
+     return,
      {outdir,?REPOXY_EBIN_DIR}] ++ Opts.
 
 %%------------------------------------------------------------------------------
@@ -281,8 +287,10 @@ add_repoxy_erl_opts(Opts) ->
 %%------------------------------------------------------------------------------
 lookup_app_erl_opts(File, #project_cfg{app_infos =  AIs}) ->
     case get_app_info_for_file(File, AIs) of
-        {ok, #app_info{erl_opts = EOs}} ->
-            EOs;
+        {ok, #app_info{cwd = AppDir, erl_opts = EOs}} ->
+            [{i, filename:join([AppDir, "include"])},
+             {i, filename:dirname(File)}
+             | EOs];
         _ ->
             []
     end.
