@@ -98,7 +98,7 @@ recursivly for a file called 'repoxy'."
       (select-window (or (get-buffer-window (current-buffer))
                          (display-buffer (current-buffer))))
       (setq default-directory (-repoxy-find-project-base-dir))
-      (start-process "*repoxy-server*" buf (concat default-directory "repoxy"))
+      (start-process "*repoxy-server*" buf (-repoxy-find-repoxy-executable))
       (if (-repoxy-wait-for-output
            buf
            (regexp-quote "Waiting for client.")
@@ -121,6 +121,20 @@ recursivly for a file called 'repoxy'."
   (setq -repoxy-server-buf nil)
   (setq -repoxy-dir nil)
   (message "REPOXY repoxy stopped"))
+
+(defun -repoxy-find-repoxy-executable()
+  "Find a repoxy executable either in the `default-directory' or
+in the repoxy load path."
+  (interactive)
+  (let* ((path (find "repoxy" load-path :test 'string-match-p))
+         (repoxy-dir (-repoxy-find-in-parent-dir "repoxy"
+                                                 (file-name-directory path)))
+         (repoxy (concat (file-name-directory repoxy-dir) "repoxy")))
+    (and
+     (file-readable-p repoxy)
+     (file-executable-p repoxy)
+     (message "REPOXY using repoxy executable: %s" repoxy)
+     repoxy)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Shell API
@@ -543,15 +557,17 @@ assume \"../\" as project dir."
       (-repoxy-find-in-parent-dir "rebar")
       (expand-file-name (file-name-as-directory ".."))))
 
-(defun -repoxy-find-in-parent-dir(file)
-  "Return the first parent directory of the directory containing
-  the current buffer file, that contains the repoxy executable."
+(defun -repoxy-find-in-parent-dir(file &optional start-dir)
+  "Find a parent directory containing 'file' starting from the
+directory of the file in the current buffer. Alternately if
+'start-dir' is non-nil start from there."
   (let* ((current-depth 3)
          (current-file (buffer-file-name (current-buffer)))
          (base-dir nil)
-         (path (if current-file
-                   (file-name-directory (expand-file-name current-file))
-                 (expand-file-name default-directory))))
+         (path (or start-dir
+                   (if current-file
+                       (file-name-directory (expand-file-name current-file))
+                     (expand-file-name default-directory)))))
     (while (and (>= current-depth 0) (null base-dir))
       (if (file-regular-p (concat path file))
           (setq base-dir path)
