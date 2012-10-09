@@ -311,6 +311,7 @@ add_repoxy_erl_opts(Opts) ->
      verbose,
      report,
      return,
+     bin_opt_info,
      {outdir,?REPOXY_EBIN_DIR}] ++ Opts.
 
 %%------------------------------------------------------------------------------

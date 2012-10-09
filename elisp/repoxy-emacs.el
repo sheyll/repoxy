@@ -73,6 +73,7 @@ node and triggers rebar to compile all"
         (repoxy-do '(rebar compile) 't)
         (repoxy-do '(load_apps_into_node))
         (setq -repoxy-app-paths (repoxy-do '(get_app_paths)))
+        (compilation-mode)
         (-repoxy-undecorate-buffers)
         (-repoxy-update-erl-buffer-headers)
         (-repoxy-highlight-compiler-results)))))
