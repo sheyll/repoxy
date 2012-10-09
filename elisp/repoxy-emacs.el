@@ -28,6 +28,7 @@
 (defvar -repoxy-dir nil)
 (defvar -repoxy-compilation-results nil)
 (defvar -repoxy-buffer-has-repoxy-header-line nil)
+(make-variable-buffer-local '-repoxy-buffer-has-repoxy-header-line)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Repoxy High-Level API
@@ -439,7 +440,6 @@ recent rebar invokation, return `nil'."
   "Create all internal global variables and add the compile
 function to the save hooks of erlang files."
   (interactive)
-  (make-variable-buffer-local '-repoxy-buffer-has-repoxy-header-line)
   (add-hook 'find-file-hook '-repoxy-attach-to-buffer))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -533,23 +533,32 @@ current working directory."
       result-buf)))
 
 (defun -repoxy-find-project-base-dir()
+  "Return a working directory for the current project. First
+search for a executable called 'repoxy' in the parent
+directories, when this failes, try to find a rebar.config, if that fails too
+assume \"../\" as project dir."
+  (or (-repoxy-find-in-parent-dir "repoxy")
+      (-repoxy-find-in-parent-dir "rebar.config")
+      (-repoxy-find-in-parent-dir "rebar.config.src")
+      (-repoxy-find-in-parent-dir "rebar")
+      (expand-file-name (file-name-as-directory ".."))))
+
+(defun -repoxy-find-in-parent-dir(file)
   "Return the first parent directory of the directory containing
   the current buffer file, that contains the repoxy executable."
   (let* ((current-depth 3)
          (current-file (buffer-file-name (current-buffer)))
          (base-dir nil)
-         (path-to-repoxy
-          (if current-file
-              (file-name-directory (expand-file-name current-file))
-            (expand-file-name default-directory))))
-    (while (and (>= current-depth 0)
-                (null base-dir))
-      (if (directory-files path-to-repoxy :full-name "^repoxy$")
-          (setq base-dir path-to-repoxy)
+         (path (if current-file
+                   (file-name-directory (expand-file-name current-file))
+                 (expand-file-name default-directory))))
+    (while (and (>= current-depth 0) (null base-dir))
+      (if (file-regular-p (concat path file))
+          (setq base-dir path)
         (progn
-          (setq path-to-repoxy
+          (setq path
                 (expand-file-name
-                 (concat path-to-repoxy (file-name-as-directory ".."))))
+                 (concat path (file-name-as-directory ".."))))
           (setq current-depth (1- current-depth)))))
     base-dir))
 
