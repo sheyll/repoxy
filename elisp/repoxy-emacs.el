@@ -1,5 +1,5 @@
 (provide 'repoxy-emacs)
-
+(require 'cl)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; User defined vairable section.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -27,6 +27,7 @@
 (defvar -repoxy-app-paths nil)
 (defvar -repoxy-dir nil)
 (defvar -repoxy-compilation-results nil)
+(defvar -repoxy-buffer-has-repoxy-header-line nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Repoxy High-Level API
@@ -66,14 +67,15 @@ node and triggers rebar to compile all"
       (let ((inhibit-read-only 't)
             (select-window (or (get-buffer-window (current-buffer))
                                (display-buffer (current-buffer)))))
-        (setq -repoxy-compilation-results nil)
-        (kill-region (point-min) (point-max))
         (repoxy-do '(reset))
         (repoxy-do '(rebar clean))
         (repoxy-do '(rebar "get-deps"))
         (repoxy-do '(rebar compile) 't)
         (repoxy-do '(load_apps_into_node))
-        (setq -repoxy-app-paths (repoxy-do '(get_app_paths)))))))
+        (setq -repoxy-app-paths (repoxy-do '(get_app_paths)))
+        (-repoxy-undecorate-buffers)
+        (-repoxy-update-erl-buffer-headers)
+        (-repoxy-highlight-compiler-results)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Repoxy invokation API
@@ -170,6 +172,7 @@ reseting the project and recompiling everything."
   "Disconnect from a repoxy instance. This does not cause repoxy
 to reset itself, so a later reconnect does not require recompilation"
   (interactive)
+  (-repoxy-undecorate-buffers)
   (setq -repoxy-receive-buffer nil)
   (setq repoxy-result nil)
   (setq -repoxy-app-paths nil)
@@ -188,8 +191,9 @@ request."
   (if (-repoxy-is-connected)
       (with-current-buffer -repoxy-server-buf
         (let ((inhibit-read-only 't))
-          (if clean-buffer
-              (kill-region (point-min) (point-max)))
+          (when clean-buffer
+            (fundamental-mode)
+            (delete-region (point-min) (point-max)))
           (setq repoxy-result nil)
           (process-send-string -repoxy-socket (prin1-to-string request))
           (if
@@ -267,6 +271,9 @@ request."
       (progn
         (message "REPOXY attaching to buffer %s" (buffer-name (current-buffer)))
         (repoxy-mode)
+        (when (-repoxy-is-connected)
+          (-repoxy-highlight-compiler-results-in-buffer (current-buffer))
+          (-repoxy-update-erl-buffer-header (current-buffer)))
         (add-hook 'after-save-hook
                   (function -repoxy-buffer-saved)))))
 
@@ -277,11 +284,114 @@ request."
         (if current-file
             (repoxy-compile-file current-file)))))
 
-;; TODO Move:
 (defun repoxy-compile-file(file)
-  "Compile a file via repoxy and set the global variable -repoxy-compilation-results to the compilation result."
+  "Compile a file via repoxy and set the global variable
+-repoxy-compilation-results to the compilation result."
   (message "REPOXY compiling %s" file)
-  (setq -repoxy-compilation-results (repoxy-do `(compile_file ,file) 't)))
+  (setq -repoxy-compilation-results (repoxy-do `(compile_file ,file) 't))
+  (with-current-buffer -repoxy-server-buf
+    (compilation-mode))
+  (-repoxy-update-erl-buffer-headers)
+  (-repoxy-highlight-compiler-results))
+
+(defun -repoxy-highlight-compiler-results()
+  "Highlight errors and warnings that resulted from a previous
+call to repoxy-compile-file in all buffers currently open."
+  (interactive)
+  (mapcar
+   (lambda(buf)
+     (when (buffer-file-name buf)
+       (-repoxy-highlight-compiler-results-in-buffer buf)))
+   (buffer-list)))
+
+(defun -repoxy-highlight-compiler-results-in-buffer(buf)
+  "Take a look at -repoxy-compilation-results and highlight all
+  warnings and error concerning the file opened by 'buf'."
+  (let ((current-file (buffer-file-name buf)))
+    (when current-file
+      (save-excursion
+        (with-current-buffer buf
+          (remove-overlays 'nil 'nil 'compilation-error-overlay 't)
+          (mapcar
+           '-repoxy-add-overlay-compiler-result-current-buffer
+           (-repoxy-compilation-results-for-file current-file)))))))
+
+(defun -repoxy-add-overlay-compiler-result-current-buffer(file_err_info)
+  "Put a highlight and tooltip for a single compilation result
+into the current buffers overlay. The input must be a sequence
+like this: [warning|error, line, message]."
+  (goto-char 1)
+  (let* ((type (aref file_err_info 0))
+         (line-number (aref file_err_info 1))
+         (msg (aref file_err_info 2))
+         (start-pos (line-beginning-position line-number))
+         (end-pos (line-end-position line-number))
+         (ov (make-overlay start-pos end-pos)))
+    (overlay-put ov 'compilation-error-overlay 't)
+    (overlay-put ov 'face type)
+    (overlay-put ov 'help-echo  (format "%s: %s" type msg))))
+
+(defun -repoxy-compilation-results-for-file(current-file)
+  "Get a list of compilation warnings/error for a file by
+filtering -repoxy-compilation-results. The result is a list with triples: ([error|warning, line-number, message])"
+  (mapcar (lambda(err_info)
+            (let ((type (aref err_info 0))
+                  (line-number (aref err_info 2))
+                  (msg (aref err_info 3)))
+              (vector type line-number msg)))
+          (remove-if (lambda (err_info)
+                       (let ((f (aref err_info 1)))
+                         (not (string= current-file f))))
+                     -repoxy-compilation-results)))
+
+(defun -repoxy-update-erl-buffer-headers()
+  "Update the header-lines of in all erlang buffers currently open."
+  (interactive)
+  (mapcar
+   (lambda(buf)
+     (when (buffer-file-name buf)
+       (-repoxy-update-erl-buffer-header buf)))
+   (buffer-list)))
+
+(defun -repoxy-update-erl-buffer-header(buf)
+  "Show a nice info header line in the current buffer if it is managed by repoxy"
+  (save-excursion
+    (with-current-buffer buf
+      (when (and (-repoxy-is-connected)
+                 (-repoxy-buffer-erl-source))
+        (let* ((erl-file (-repoxy-buffer-erl-source))
+               (app-name (car (-repoxy-lookup-app erl-file)))
+               (compilation-errors (length
+                                    (-repoxy-compilation-results-for-file erl-file))))
+          (setq -repoxy-buffer-has-repoxy-header-line 't)
+          (setq header-line-format
+                (concat
+                 (propertize " *REPOXY CONNECTED*   " 'face 'bold)
+                 (format "%s" app-name)
+                 (when (> compilation-errors 0)
+                   (propertize (format "  Errors/Warnings: %d" compilation-errors) 'face 'error))))))
+      (force-mode-line-update))))
+
+(defun -repoxy-undecorate-buffers()
+  "Remove a headerline and compilation result overlays from all
+buffers modified by repoxy."
+  (interactive)
+  (mapcar
+   (lambda(buf)
+     (when (buffer-file-name buf)
+       (-repoxy-undecorate-buffer buf)))
+   (buffer-list)))
+
+(defun -repoxy-undecorate-buffer(buf)
+  "Remove a headerline and compilation result overlays from a
+buffer modified by repoxy."
+  (save-excursion
+    (with-current-buffer buf
+      (when -repoxy-buffer-has-repoxy-header-line
+        (setq -repoxy-buffer-has-repoxy-header-line nil)
+        (setq header-line-format nil))
+      (when (buffer-file-name)
+        (remove-overlays 'nil 'nil 'compilation-error-overlay 't)))))
 
 (defun -repoxy-buffer-erl-source()
   "Return the expanded buffer file name, if the file opened in
@@ -293,48 +403,32 @@ request."
                (dir (file-name-directory file-and-dir))
                (file (file-name-nondirectory file-and-dir)))
           (if (and
-               (or ; if -repoxy-dir is defined, dir must start with -repoxy-dir
-                (null -repoxy-dir)
-                (string-prefix-p -repoxy-dir dir)) ; file must be part of the current project
-               (or ; either source or test:
-                (and
-                 (string-match-p "src/$" dir)
-                 (string-match-p ".erl$" file))
-                (and
-                 (string-match-p "test/$" dir)
-                 (string-match-p "_tests?.erl$" file))))
-              file-and-dir
-            (progn
-             (message "REPOXY %s not accepted as erlang source." file-and-dir-short)
-             nil)))
-      nil)))
+                 (or ; if -repoxy-dir is defined, dir must start with -repoxy-dir
+                  (null -repoxy-dir)
+                  (string-prefix-p -repoxy-dir dir)) ; file must be part of the current project
+                 (or ; either source or test:
+                  (and
+                   (string-match-p "src/$" dir)
+                   (string-match-p ".erl$" file))
+                  (and
+                   (string-match-p "test/$" dir)
+                   (string-match-p "_tests?.erl$" file))))
+                 file-and-dir)))))
 
-(defun -repoxy-erl-source-of-loaded-app(file)
-  "Determine the type of the file:
-`t' - if file is recognized as erlang source file (excluding headers)
-`nil' - not erlang source"
- (if (-repoxy-lookup-app-dir file)
-     (case (file-name-extension file)
-       ("erl" 't)
-       ("app.src" 't)
-       ("hrl" 't))))
-
-(defun -repoxy-lookup-app-dir(file)
-  "Find the application base directory (parent of src/ include/
-test/) a file. If the file is not part of an application that has
-successfully been compiled be the most recent rebar invokation,
-return `nil'."
+(defun -repoxy-lookup-app(file)
+  "Find the application name and base directory (parent of src/
+include/ test/) of a file, or nil if the file is not part of an
+application currently loaded by repoxy. If the file is not part
+of an application that has successfully been compiled be the most
+recent rebar invokation, return `nil'."
   (concatenate
    'list
-   (mapcar
-    (lambda(appname-dir-pair)
-      (let ((dir (aref appname-dir-pair 1)))
-        (if (string-prefix-p
-             (expand-file-name dir)
-             (expand-file-name file))
-            dir
-          '())))
-    -repoxy-app-paths)))
+   (find file -repoxy-app-paths
+         :test (lambda(file appname-dir-pair)
+                 (let ((dir (aref appname-dir-pair 1)))
+                   (string-prefix-p
+                        (expand-file-name dir)
+                        (expand-file-name file)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Emacs integration API
@@ -344,6 +438,7 @@ return `nil'."
   "Create all internal global variables and add the compile
 function to the save hooks of erlang files."
   (interactive)
+  (make-variable-buffer-local '-repoxy-buffer-has-repoxy-header-line)
   (add-hook 'find-file-hook '-repoxy-attach-to-buffer))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

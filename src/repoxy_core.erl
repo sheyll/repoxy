@@ -204,25 +204,56 @@ compile_file(Cfg, File) ->
                             add_repoxy_erl_opts(
                               lookup_app_erl_opts(File, Cfg)))).
 
-%%
-%%    case compile:file(File, ErlOpts) of
-%%        {ok, ModuleName, Warnings} ->
-%%            code:purge(ModuleName),
-%%            code:delete(ModuleName),
-%%            code:purge(ModuleName),
-%%            case code:load_abs(filename:join(?REPOXY_EBIN_DIR,
-%%                                             atom_to_list(ModuleName))) of
-%%                {module, ModuleName} ->
-%%                    {ok, Warnings};
-%%
-%%                {error, What} ->
-%%                    error_logger:error_msg("compile_file %w failed to load module: %w", [File, What]),
-%%                    {error, Warnings, []}
-%%            end;
-%%
-%%        {error, Errors, Warnings} ->
-%%            {error, Errors, Warnings}
-%%    end.
+-type file_err_info() :: {File :: string(),
+                          [{Line::non_neg_integer(),
+                            module(),
+                            ErrDescr :: term()}]}.
+
+%%------------------------------------------------------------------------------
+%% @private
+%%------------------------------------------------------------------------------
+-spec format_compilation_result({Warns :: [file_err_info()],
+                                 Errors :: [file_err_info()]}) ->
+                                         [{error | warning,
+                                           FileName :: string(),
+                                           Line :: non_neg_integer(),
+                                           Message :: string()}].
+format_compilation_result({Ws, Es}) ->
+    Files = proplists:get_keys(Ws ++ Es),
+    lists:foldr(fun(F, Res) ->
+                        Res ++
+                            [{error, F, Line, lists:flatten(Mod:format_error(ErrDescr))}
+                             || {F, ErrInfos} <- proplists:lookup_all(F, Es),
+                                {Line, Mod, ErrDescr} <-  ErrInfos] ++
+                            [{warning, F, Line, lists:flatten(Mod:format_error(ErrDescr))}
+                             || {F, ErrInfos} <- proplists:lookup_all(F, Ws),
+                                {Line, Mod, ErrDescr} <-  ErrInfos]
+                end, [], Files).
+
+%%------------------------------------------------------------------------------
+%% @private
+%%------------------------------------------------------------------------------
+-spec compile_file_and_load(string(), ErlOpts :: [term()]) ->
+                                   {Warns :: [term()], Errors :: [term()]}.
+compile_file_and_load(File, ErlOpts) ->
+    case compile:file(File, ErlOpts) of
+       {ok, ModuleName, Warnings} ->
+           code:purge(ModuleName),
+           code:delete(ModuleName),
+           code:purge(ModuleName),
+           case code:load_abs(filename:join(?REPOXY_EBIN_DIR,
+                                            atom_to_list(ModuleName))) of
+               {module, ModuleName} ->
+                   {Warnings, []};
+
+               {error, What} ->
+                   error_logger:error_msg("compile_file %w failed to load module: %w", [File, What]),
+                   {Warnings, []}
+           end;
+
+       {error, Errors, Warnings} ->
+           {Warnings, Errors}
+   end.
 
 %%------------------------------------------------------------------------------
 %% @doc
