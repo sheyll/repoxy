@@ -294,7 +294,8 @@ request."
                   (function -repoxy-buffer-saved)))))
 
 (defun -repoxy-buffer-saved()
-  "Compile the buffer if the file is part of the active repoxy project"
+  "Compile the buffer if the file is part of the active repoxy
+project"
   (if (-repoxy-is-connected)
       (let ((current-file (-repoxy-buffer-erl-source)))
         (if current-file
@@ -304,11 +305,50 @@ request."
   "Compile a file via repoxy and set the global variable
 -repoxy-compilation-results to the compilation result."
   (message "REPOXY compiling %s" file)
-  (setq -repoxy-compilation-results (repoxy-do `(compile_file ,file) 't))
+  (-repoxy-remove-compilation-results-for-file file)
+  (-repoxy-merge-compilation-results (repoxy-do `(compile_file ,file) 't))
   (with-current-buffer -repoxy-server-buf
     (compilation-mode))
   (-repoxy-update-erl-buffer-headers)
   (-repoxy-highlight-compiler-results))
+
+(defun -repoxy-remove-compilation-results-for-file(in-file)
+  "Remove all entries for 'file' in -repoxy-compilation-results"
+  (let ((file (expand-file-name in-file)))
+    (setq -repoxy-compilation-results
+          (remove* file -repoxy-compilation-results
+                   :key '-repoxy-err-info-file
+                   :test 'string=))))
+
+(defun -repoxy-merge-compilation-results(err-infs)
+  "Add error infos from a compilation request into
+  -repoxy-compilation-results,"
+  (setq -repoxy-compilation-results
+        (sort
+         (append -repoxy-compilation-results err-infs)
+         (lambda(i1 i2)
+           (let ((file1 (-repoxy-err-info-file i1))
+                 (file2 (-repoxy-err-info-file i2))
+                 (line1 (-repoxy-err-info-line i1))
+                 (line2 (-repoxy-err-info-line i2)))
+             (or (string< file1 file2)
+                 (and (string= file1 file2) (< line1 line2))))))))
+
+(defun -repoxy-err-info-type(err-info)
+  "Get the type, either warning or error from an err-info"
+  (aref err-info 0))
+
+(defun -repoxy-err-info-file(err-info)
+  "Get the file name from an err-info"
+  (aref err-info 1))
+
+(defun -repoxy-err-info-line(err-info)
+  "Get the line number from an err-info"
+  (aref err-info 2))
+
+(defun -repoxy-err-info-msg(err-info)
+  "Get the message from an err-info"
+  (aref err-info 3))
 
 (defun -repoxy-highlight-compiler-results()
   "Highlight errors and warnings that resulted from a previous
@@ -332,14 +372,13 @@ call to repoxy-compile-file in all buffers currently open."
            '-repoxy-add-overlay-compiler-result-current-buffer
            (-repoxy-compilation-results-for-file current-file)))))))
 
-(defun -repoxy-add-overlay-compiler-result-current-buffer(file_err_info)
+(defun -repoxy-add-overlay-compiler-result-current-buffer(err_info)
   "Put a highlight and tooltip for a single compilation result
-into the current buffers overlay. The input must be a sequence
-like this: [warning|error, line, message]."
+into the current buffers overlay."
   (goto-char 1)
-  (let* ((type (aref file_err_info 0))
-         (line-number (aref file_err_info 1))
-         (msg (aref file_err_info 2))
+  (let* ((type (-repoxy-err-info-type err_info))
+         (line-number (-repoxy-err-info-line err_info))
+         (msg (-repoxy-err-info-msg err_info))
          (start-pos (line-beginning-position line-number))
          (end-pos (line-end-position line-number))
          (ov (make-overlay start-pos end-pos)))
@@ -349,16 +388,45 @@ like this: [warning|error, line, message]."
 
 (defun -repoxy-compilation-results-for-file(current-file)
   "Get a list of compilation warnings/error for a file by
-filtering -repoxy-compilation-results. The result is a list with triples: ([error|warning, line-number, message])"
-  (mapcar (lambda(err_info)
-            (let ((type (aref err_info 0))
-                  (line-number (aref err_info 2))
-                  (msg (aref err_info 3)))
-              (vector type line-number msg)))
-          (remove-if (lambda (err_info)
-                       (let ((f (aref err_info 1)))
-                         (not (string= current-file f))))
-                     -repoxy-compilation-results)))
+filtering -repoxy-compilation-results."
+  (let ((current-file (expand-file-name current-file)))
+    (remove* current-file -repoxy-compilation-results
+             :key '-repoxy-err-info-file
+             :test-not 'string=)))
+
+(defun repoxy-goto-prev-error()
+  "Goto to the nearest compiler message before (point)."
+  (interactive)
+  (repoxy-goto-next-error
+   (reverse -repoxy-compilation-results)))
+
+(defun repoxy-goto-next-error(&optional alt-err-infos)
+  "Goto to the nearest compiler message after (point). If the
+optional parameter alternative-err-infos is non-nil it will be
+used instead of -repoxy-compilation-results,"
+  (interactive)
+  (let* ((c-file (expand-file-name (buffer-file-name)))
+         (c-line (1+ (count-lines (point-min) (point)))))
+    (-repoxy-visit-err-info
+     (or (find-if (lambda(i)
+                    (let ((i-file (-repoxy-err-info-file i))
+                          (i-line (-repoxy-err-info-line i)))
+                      (or
+                       (and (string= i-file c-file)
+                            (> i-line c-line))
+                       (and (string< c-file i-file)))))
+                  (or alt-err-infos
+                      -repoxy-compilation-results))
+         ;; nothing after, wrap around:
+         (car -repoxy-compilation-results)))))
+
+(defun -repoxy-visit-err-info(err-info)
+  "Open the file and go to the line where an error/warning was found"
+    (when err-info
+      (let ((e-file (-repoxy-err-info-file err-info))
+            (e-line (-repoxy-err-info-line err-info)))
+        (and (find-file e-file)
+             (goto-line e-line)))))
 
 (defun -repoxy-update-erl-buffer-headers()
   "Update the header-lines of in all erlang buffers currently open."
@@ -480,21 +548,27 @@ function to the save hooks of erlang files."
                                                             repoxy-shell :keys "C-c C-v d"))
                                 (sep3 . (menu-item "--"))
 
-                                (sep4 . (menu-item "Rebar:"))
+                                (sep4 . (menu-item "Erlang:"))
                                 (sep5 . (menu-item "--"))
                                 (refresh-skel .
-                                                 (menu-item "clean/get-deps/compile"
+                                                 (menu-item "clean + get_deps + compile"
                                                             repoxy-rebar-clean-compile :keys "C-c C-v r"))
-                                (sep6 . (menu-item "--"))
-                                (sep7 . (menu-item "Emacs:"))
                                 (toggle-impl-test-skel .
                                                  (menu-item "Toggle between test/impl"
                                                             repoxy-toggle-impl-test :keys "<F5>"))
+                                (prev-error-skel .
+                                                 (menu-item "Goto previous error"
+                                                            repoxy-goto-prev-error :keys "<F3>"))
+                                (prev-error-skel .
+                                                 (menu-item "Goto next error"
+                                                            repoxy-goto-next-error :keys "<F4>"))
                                 )))))))
     (define-key the-map (kbd "C-c C-v c") 'repoxy-run)
     (define-key the-map (kbd "C-c C-v d") 'repoxy-kill)
     (define-key the-map (kbd "C-c C-v s") 'repoxy-shell)
     (define-key the-map (kbd "C-c C-v r") 'repoxy-rebar-clean-compile)
+    (define-key the-map (kbd "<f3>") 'repoxy-goto-prev-error)
+    (define-key the-map (kbd "<f4>") 'repoxy-goto-next-error)
     (define-key the-map (kbd "<f5>") 'repoxy-toggle-impl-test)
     the-map)
   "Repoxy minor mode keymap.")
