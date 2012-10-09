@@ -397,13 +397,10 @@ filtering -repoxy-compilation-results."
 (defun repoxy-goto-prev-error()
   "Goto to the nearest compiler message before (point)."
   (interactive)
-  (repoxy-goto-next-error
-   (reverse -repoxy-compilation-results)))
+  :todo)
 
-(defun repoxy-goto-next-error(&optional alt-err-infos)
-  "Goto to the nearest compiler message after (point). If the
-optional parameter alternative-err-infos is non-nil it will be
-used instead of -repoxy-compilation-results,"
+(defun repoxy-goto-next-error()
+  "Goto to the nearest compiler message after (point)."
   (interactive)
   (let* ((c-file (expand-file-name (buffer-file-name)))
          (c-line (1+ (count-lines (point-min) (point)))))
@@ -415,8 +412,7 @@ used instead of -repoxy-compilation-results,"
                        (and (string= i-file c-file)
                             (> i-line c-line))
                        (and (string< c-file i-file)))))
-                  (or alt-err-infos
-                      -repoxy-compilation-results))
+                  -repoxy-compilation-results)
          ;; nothing after, wrap around:
          (car -repoxy-compilation-results)))))
 
