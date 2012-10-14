@@ -60,24 +60,252 @@ repoxy."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun repoxy-rebar-clean-compile()
-  "Flushe the modules and applications currently contained in the
-node and triggers rebar to compile all"
+  "Flush the modules and applications currently contained in the
+node and triggers rebar to clean and get all dependencies and the
+to compile everything."
+  (interactive)
+  (repoxy-rebar-compile 't))
+
+(defun repoxy-rebar-compile(clean)
+  "Compile all files that have changed using rebar. This flushes
+all modules currently loaded. If 'clean' is non-nil the clean and
+get-deps target is executed. When there was a failure the server
+buffer will be made visible and nil is returned, otherwise 't
+will be returned."
   (interactive)
   (if (-repoxy-is-connected)
     (with-current-buffer -repoxy-server-buf
       (let ((inhibit-read-only 't)
-            (select-window (or (get-buffer-window (current-buffer))
-                               (display-buffer (current-buffer)))))
+            (had-errors nil))
         (repoxy-do '(reset))
-        (repoxy-do '(rebar clean))
-        (repoxy-do '(rebar "get-deps"))
+        (when clean
+          (setq -repoxy-compilation-results 'nil)
+          (repoxy-do '(rebar clean))
+          (repoxy-do '(rebar "get-deps")))
         (repoxy-do '(rebar compile) 't)
         (repoxy-do '(load_apps_into_node))
-        (setq -repoxy-app-paths (repoxy-do '(get_app_paths)))
+        (setq -repoxy-app-paths (repoxy-do '(get_app_paths))))
+        (when had-errors ; TODO use repoxy-on-error
+          (select-window (or (get-buffer-window (current-buffer))
+                             (display-buffer (current-buffer)))
+                         'no-record)
+          (message "REPOXY error: a request had an error"))
         (compilation-mode)
+        (-repoxy-extract-compiler-results-from-rebar-output)
         (-repoxy-undecorate-buffers)
         (-repoxy-update-erl-buffer-headers)
-        (-repoxy-highlight-compiler-results)))))
+        (-repoxy-highlight-compiler-results))))
+
+(defun repoxy-compile-file(file)
+  "Compile a file via repoxy and set the global variable
+-repoxy-compilation-results to the compilation result."
+  (message "REPOXY compiling %s" file)
+  (-repoxy-remove-compilation-results-for-file file)
+  (-repoxy-merge-compilation-results (repoxy-do `(compile_file ,file) 't))
+  (with-current-buffer -repoxy-server-buf
+    (compilation-mode))
+  (-repoxy-update-erl-buffer-headers)
+  (-repoxy-highlight-compiler-results))
+
+(defun -repoxy-remove-compilation-results-for-file(in-file)
+  "Remove all entries for 'file' in -repoxy-compilation-results"
+  (let ((file (expand-file-name in-file)))
+    (setq -repoxy-compilation-results
+          (remove* file -repoxy-compilation-results
+                   :key '-repoxy-err-info-file
+                   :test 'string=))))
+
+(defun -repoxy-merge-compilation-results(err-infs)
+  "Add error infos from a compilation request into
+  -repoxy-compilation-results,"
+  (setq -repoxy-compilation-results
+        (sort
+         (append -repoxy-compilation-results err-infs)
+         (lambda(i1 i2)
+           (let ((file1 (-repoxy-err-info-file i1))
+                 (file2 (-repoxy-err-info-file i2))
+                 (line1 (-repoxy-err-info-line i1))
+                 (line2 (-repoxy-err-info-line i2)))
+             (or (string< file1 file2)
+                 (and (string= file1 file2) (< line1 line2)))))))
+  (delete-duplicates -repoxy-compilation-results
+                     :key 'prin1-to-string
+                     :test 'string=))
+
+(defun -repoxy-extract-compiler-results-from-rebar-output()
+  "Read the repoxy server buffer and populate the compiler results."
+  (save-excursion
+    (let ((str (with-current-buffer "*repoxy-server*"
+                 (buffer-substring-no-properties (point-min) (point-max))))
+          (start-pos 0))
+      (while
+          (string-match "^\\(.+\\):\\([0-9]+\\): \\(Warning: \\)?\\(.+\\)$"
+                        str
+                        start-pos)
+        (let ((file (with-current-buffer "*repoxy-server*"
+                      (expand-file-name (match-string 1 str))))
+              (line (string-to-number (match-string 2 str)))
+              (type (if (match-string 3) "warning" "error"))
+              (msg  (match-string 4 str)))
+          (setq start-pos (match-end 0))
+          (-repoxy-merge-compilation-results
+           (list (vector type file line msg))))))))
+
+(defun -repoxy-err-info-type(err-info)
+  "Get the type, either warning or error from an err-info"
+  (aref err-info 0))
+
+(defun -repoxy-err-info-file(err-info)
+  "Get the file name from an err-info"
+  (aref err-info 1))
+
+(defun -repoxy-err-info-line(err-info)
+  "Get the line number from an err-info"
+  (aref err-info 2))
+
+(defun -repoxy-err-info-msg(err-info)
+  "Get the message from an err-info"
+  (aref err-info 3))
+
+(defun -repoxy-highlight-compiler-results()
+  "Highlight errors and warnings that resulted from a previous
+call to repoxy-compile-file in all buffers currently open."
+  (interactive)
+  (mapcar
+   (lambda(buf)
+     (when (buffer-file-name buf)
+       (-repoxy-highlight-compiler-results-in-buffer buf)))
+   (buffer-list)))
+
+(defun -repoxy-highlight-compiler-results-in-buffer(buf)
+  "Take a look at -repoxy-compilation-results and highlight all
+  warnings and error concerning the file opened by 'buf'."
+  (let ((current-file (buffer-file-name buf)))
+    (when current-file
+      (save-excursion
+        (with-current-buffer buf
+          (remove-overlays 'nil 'nil 'compilation-error-overlay 't)
+          (mapcar
+           '-repoxy-add-overlay-compiler-result-current-buffer
+           (-repoxy-compilation-results-for-file current-file)))))))
+
+(defun -repoxy-add-overlay-compiler-result-current-buffer(err_info)
+  "Put a highlight and tooltip for a single compilation result
+into the current buffers overlay."
+  (goto-char (point-min))
+  (let* ((type (-repoxy-err-info-type err_info))
+         (line-number (-repoxy-err-info-line err_info))
+         (msg (-repoxy-err-info-msg err_info))
+         (start-pos (line-beginning-position line-number))
+         (end-pos (line-end-position line-number))
+         (ov (make-overlay start-pos end-pos)))
+    (overlay-put ov 'compilation-error-overlay 't)
+    (overlay-put ov 'face type)
+    (overlay-put ov 'help-echo  (format "%s: %s" type msg))))
+
+(defun -repoxy-compilation-results-for-file(current-file)
+  "Get a list of compilation warnings/error for a file by
+filtering -repoxy-compilation-results."
+  (let ((current-file (expand-file-name current-file)))
+    (remove* current-file -repoxy-compilation-results
+             :key '-repoxy-err-info-file
+             :test-not 'string=)))
+
+(defun repoxy-goto-prev-error()
+  "Goto to the nearest compiler message before (point)."
+  (interactive)
+  :todo)
+
+(defun repoxy-goto-next-error()
+  "Goto to the nearest compiler message after (point)."
+  (interactive)
+  (let* ((c-file (expand-file-name (buffer-file-name)))
+         (c-line (1+ (count-lines (point-min) (point)))))
+    (-repoxy-visit-err-info
+     (or (find-if (lambda(i)
+                    (let ((i-file (-repoxy-err-info-file i))
+                          (i-line (-repoxy-err-info-line i)))
+                      (or
+                       (and (string= i-file c-file)
+                            (> i-line c-line))
+                       (and (string< c-file i-file)))))
+                  -repoxy-compilation-results)
+         ;; nothing after, wrap around:
+         (car -repoxy-compilation-results)))))
+
+(defun -repoxy-visit-err-info(err-info)
+  "Open the file and go to the line where an error/warning was found"
+    (when err-info
+      (let ((e-file (-repoxy-err-info-file err-info))
+            (e-line (-repoxy-err-info-line err-info)))
+        (and (find-file e-file)
+             (progn
+               (goto-char (point-min))
+               (forward-line (- e-line 1)))))))
+
+(defun -repoxy-update-erl-buffer-headers()
+  "Update the header-lines of in all erlang buffers currently open."
+  (interactive)
+  (mapcar
+   (lambda(buf)
+     (when (buffer-file-name buf)
+       (-repoxy-update-erl-buffer-header buf)))
+   (buffer-list)))
+
+(defun -repoxy-update-erl-buffer-header(buf)
+  "Show a nice info header line in the current buffer if it is managed by repoxy"
+  (save-excursion
+    (with-current-buffer buf
+      (when (and (-repoxy-is-connected)
+                 (-repoxy-buffer-erl-source))
+        (let* ((erl-file (-repoxy-buffer-erl-source))
+               (app-name (car (-repoxy-lookup-app erl-file)))
+               (compilation-errors (length
+                                    (-repoxy-compilation-results-for-file erl-file))))
+          (setq -repoxy-buffer-has-repoxy-header-line 't)
+          (setq header-line-format
+                (concat
+                 (propertize " *REPOXY CONNECTED*   " 'face 'bold)
+                 (format "%s" app-name)
+                 (when (> compilation-errors 0)
+                   (propertize (format "  Errors/Warnings: %d" compilation-errors) 'face 'error))))))
+      (force-mode-line-update))))
+
+(defun -repoxy-undecorate-buffers()
+  "Remove a headerline and compilation result overlays from all
+buffers modified by repoxy."
+  (interactive)
+  (mapcar
+   (lambda(buf)
+     (when (buffer-file-name buf)
+       (-repoxy-undecorate-buffer buf)))
+   (buffer-list)))
+
+(defun -repoxy-undecorate-buffer(buf)
+  "Remove a headerline and compilation result overlays from a
+buffer modified by repoxy."
+  (save-excursion
+    (with-current-buffer buf
+      (when -repoxy-buffer-has-repoxy-header-line
+        (setq -repoxy-buffer-has-repoxy-header-line nil)
+        (setq header-line-format nil))
+      (when (buffer-file-name)
+        (remove-overlays 'nil 'nil 'compilation-error-overlay 't)))))
+
+(defun -repoxy-lookup-app(file)
+  "Find the application name and base directory (parent of src/
+include/ test/) of a file, or nil if the file is not part of an
+application currently loaded by repoxy. If the file is not part
+of an application that has successfully been compiled be the most
+recent rebar invokation, return `nil'."
+  (concatenate
+   'list
+   (find file -repoxy-app-paths
+         :test (lambda(file appname-dir-pair)
+                 (let ((dir (aref appname-dir-pair 1)))
+                   (string-prefix-p
+                        (expand-file-name dir)
+                        (expand-file-name file)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Repoxy invokation API
@@ -93,11 +321,11 @@ recursivly for a file called 'repoxy'."
   (if (-repoxy-is-server-running)
       (error "REPOXY already running"))
 
-  (let ((buf (get-buffer-create "*repoxy-server*")))
+  (let ((proj-dir (-repoxy-find-project-base-dir))
+        (buf (get-buffer-create "*repoxy-server*")))
     (with-current-buffer buf
-      (select-window (or (get-buffer-window (current-buffer))
-                         (display-buffer (current-buffer))))
-      (setq default-directory (-repoxy-find-project-base-dir))
+      (message "REPOXY starting \"repoxy\" in \"proj-dir\"...")
+      (setq default-directory proj-dir)
       (start-process "*repoxy-server*" buf (-repoxy-find-repoxy-executable))
       (if (-repoxy-wait-for-output
            buf
@@ -122,6 +350,10 @@ recursivly for a file called 'repoxy'."
   (setq -repoxy-dir nil)
   (message "REPOXY repoxy stopped"))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; repoxy system command interaction
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defun -repoxy-find-repoxy-executable()
   "Find a repoxy executable either in the `default-directory' or
 in the repoxy load path."
@@ -135,6 +367,42 @@ in the repoxy load path."
      (file-executable-p repoxy)
      (message "REPOXY using repoxy executable: %s" repoxy)
      repoxy)))
+
+(defun -repoxy-find-project-base-dir()
+  "Return a working directory for the current project. First
+search for a executable called 'repoxy' in the parent
+directories, when this failes, try to find a rebar.config, if that fails too
+assume \"../\" as project dir."
+  (or (-repoxy-find-in-parent-dir "repoxy")
+      (-repoxy-find-in-parent-dir "rebar.config")
+      (-repoxy-find-in-parent-dir "rebar.config.src")
+      (-repoxy-find-in-parent-dir "rebar")
+      (expand-file-name (file-name-as-directory ".."))))
+
+(defun -repoxy-find-in-parent-dir(file &optional start-dir)
+  "Find a parent directory containing 'file' starting from the
+directory of the file in the current buffer. Alternately if
+'start-dir' is non-nil start from there."
+  (let* ((current-depth 3)
+         (current-file (buffer-file-name (current-buffer)))
+         (base-dir nil)
+         (path (or start-dir
+                   (if current-file
+                       (file-name-directory (expand-file-name current-file))
+                     (expand-file-name default-directory)))))
+    (while (and (>= current-depth 0) (null base-dir))
+      (if (file-regular-p (concat path file))
+          (setq base-dir path)
+        (progn
+          (setq path
+                (expand-file-name
+                 (concat path (file-name-as-directory ".."))))
+          (setq current-depth (1- current-depth)))))
+    base-dir))
+
+(defun -repoxy-is-server-running()
+  "Return non-nil if the repoxy process is active inside emacs."
+  (-repoxy-terminal-live-p -repoxy-server-buf))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Shell API
@@ -157,6 +425,24 @@ in the repoxy load path."
       (error "REPOXY shell not running"))
   (-repoxy-kill-buffer -repoxy-shell-buf)
   (setq -repoxy-shell-buf nil))
+
+(defun -repoxy-is-shell-running()
+  "Return non-nil if the shell process is active."
+  (-repoxy-terminal-live-p -repoxy-shell-buf))
+
+(defun -repoxy-run-in-terminal(command)
+  "Execute a command string an emacs terminal window using /bin/bash.
+
+The program is always executed with the project base dir as
+current working directory."
+  (let* ((default-directory (-repoxy-find-project-base-dir))
+         (result-buf (term "/bin/bash")))
+    (with-current-buffer result-buf
+      (select-window (or (get-buffer-window result-buf)
+                         (display-buffer result-buf)))
+      (term-send-raw-string (concat "cd " default-directory
+                                    " && " command "\n"))
+      result-buf)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Connection API
@@ -231,8 +517,41 @@ request."
       (error "REPOXY cannot execute request: not connected")
       nil)))
 
+(defmacro -repoxy-on-err(body)
+  "Execute 'body' when 'repoxy-result' indicates an error. An error is
+indicated by either 'error' or an array where the first element
+is 'error', e.g.: [error reason]. This is related to the way
+erlang functions usually return errors."
+    `(case (or
+            (and
+             (arrayp ,repoxy-result)
+             (aref ,repoxy-result 0))
+            ,repoxy-result)
+         ('error ,@body)
+         (otherwise ,res)))
+
+(defun -repoxy-is-connected()
+  "Return non-nil if a connection to a repoxy server is currently open."
+  (and
+   -repoxy-socket
+   (eq (process-status -repoxy-socket) 'open)))
+
+(defun -repoxy-socket-sentinel(process reason)
+  "Reset the global variables and close the socket"
+  (repoxy-disconnect)
+  (message "REPOXY sentinel received: %s" reason))
+
+(defun -repoxy-capture-output(process output)
+  "`read' the s-expression received from the server until 'read'
+was able to parse them, then update -repoxy-result with the
+s-expression."
+  (setq -repoxy-receive-buffer (concat -repoxy-receive-buffer output))
+  (message "REPOXY received output %s" output)
+  (if (ignore-errors (setq repoxy-result (read -repoxy-receive-buffer)))
+      (setq -repoxy-receive-buffer "")))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; IDE functions
+;; Switching between sourcefiles
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun repoxy-toggle-impl-test()
@@ -278,7 +597,7 @@ request."
                    (message "REPOXY file %s not found, set repoxy-open-non-existant-tests-or-impl to non-nil to open anyway" test-file)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; internal low-level IDE functions
+;; Control buffers, Save action and change action
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun -repoxy-attach-to-buffer()
@@ -299,179 +618,8 @@ project"
   (if (-repoxy-is-connected)
       (let ((current-file (-repoxy-buffer-erl-source)))
         (if current-file
-            (repoxy-compile-file current-file)))))
-
-(defun repoxy-compile-file(file)
-  "Compile a file via repoxy and set the global variable
--repoxy-compilation-results to the compilation result."
-  (message "REPOXY compiling %s" file)
-  (-repoxy-remove-compilation-results-for-file file)
-  (-repoxy-merge-compilation-results (repoxy-do `(compile_file ,file) 't))
-  (with-current-buffer -repoxy-server-buf
-    (compilation-mode))
-  (-repoxy-update-erl-buffer-headers)
-  (-repoxy-highlight-compiler-results))
-
-(defun -repoxy-remove-compilation-results-for-file(in-file)
-  "Remove all entries for 'file' in -repoxy-compilation-results"
-  (let ((file (expand-file-name in-file)))
-    (setq -repoxy-compilation-results
-          (remove* file -repoxy-compilation-results
-                   :key '-repoxy-err-info-file
-                   :test 'string=))))
-
-(defun -repoxy-merge-compilation-results(err-infs)
-  "Add error infos from a compilation request into
-  -repoxy-compilation-results,"
-  (setq -repoxy-compilation-results
-        (sort
-         (append -repoxy-compilation-results err-infs)
-         (lambda(i1 i2)
-           (let ((file1 (-repoxy-err-info-file i1))
-                 (file2 (-repoxy-err-info-file i2))
-                 (line1 (-repoxy-err-info-line i1))
-                 (line2 (-repoxy-err-info-line i2)))
-             (or (string< file1 file2)
-                 (and (string= file1 file2) (< line1 line2))))))))
-
-(defun -repoxy-err-info-type(err-info)
-  "Get the type, either warning or error from an err-info"
-  (aref err-info 0))
-
-(defun -repoxy-err-info-file(err-info)
-  "Get the file name from an err-info"
-  (aref err-info 1))
-
-(defun -repoxy-err-info-line(err-info)
-  "Get the line number from an err-info"
-  (aref err-info 2))
-
-(defun -repoxy-err-info-msg(err-info)
-  "Get the message from an err-info"
-  (aref err-info 3))
-
-(defun -repoxy-highlight-compiler-results()
-  "Highlight errors and warnings that resulted from a previous
-call to repoxy-compile-file in all buffers currently open."
-  (interactive)
-  (mapcar
-   (lambda(buf)
-     (when (buffer-file-name buf)
-       (-repoxy-highlight-compiler-results-in-buffer buf)))
-   (buffer-list)))
-
-(defun -repoxy-highlight-compiler-results-in-buffer(buf)
-  "Take a look at -repoxy-compilation-results and highlight all
-  warnings and error concerning the file opened by 'buf'."
-  (let ((current-file (buffer-file-name buf)))
-    (when current-file
-      (save-excursion
-        (with-current-buffer buf
-          (remove-overlays 'nil 'nil 'compilation-error-overlay 't)
-          (mapcar
-           '-repoxy-add-overlay-compiler-result-current-buffer
-           (-repoxy-compilation-results-for-file current-file)))))))
-
-(defun -repoxy-add-overlay-compiler-result-current-buffer(err_info)
-  "Put a highlight and tooltip for a single compilation result
-into the current buffers overlay."
-  (goto-char 1)
-  (let* ((type (-repoxy-err-info-type err_info))
-         (line-number (-repoxy-err-info-line err_info))
-         (msg (-repoxy-err-info-msg err_info))
-         (start-pos (line-beginning-position line-number))
-         (end-pos (line-end-position line-number))
-         (ov (make-overlay start-pos end-pos)))
-    (overlay-put ov 'compilation-error-overlay 't)
-    (overlay-put ov 'face type)
-    (overlay-put ov 'help-echo  (format "%s: %s" type msg))))
-
-(defun -repoxy-compilation-results-for-file(current-file)
-  "Get a list of compilation warnings/error for a file by
-filtering -repoxy-compilation-results."
-  (let ((current-file (expand-file-name current-file)))
-    (remove* current-file -repoxy-compilation-results
-             :key '-repoxy-err-info-file
-             :test-not 'string=)))
-
-(defun repoxy-goto-prev-error()
-  "Goto to the nearest compiler message before (point)."
-  (interactive)
-  :todo)
-
-(defun repoxy-goto-next-error()
-  "Goto to the nearest compiler message after (point)."
-  (interactive)
-  (let* ((c-file (expand-file-name (buffer-file-name)))
-         (c-line (1+ (count-lines (point-min) (point)))))
-    (-repoxy-visit-err-info
-     (or (find-if (lambda(i)
-                    (let ((i-file (-repoxy-err-info-file i))
-                          (i-line (-repoxy-err-info-line i)))
-                      (or
-                       (and (string= i-file c-file)
-                            (> i-line c-line))
-                       (and (string< c-file i-file)))))
-                  -repoxy-compilation-results)
-         ;; nothing after, wrap around:
-         (car -repoxy-compilation-results)))))
-
-(defun -repoxy-visit-err-info(err-info)
-  "Open the file and go to the line where an error/warning was found"
-    (when err-info
-      (let ((e-file (-repoxy-err-info-file err-info))
-            (e-line (-repoxy-err-info-line err-info)))
-        (and (find-file e-file)
-             (goto-line e-line)))))
-
-(defun -repoxy-update-erl-buffer-headers()
-  "Update the header-lines of in all erlang buffers currently open."
-  (interactive)
-  (mapcar
-   (lambda(buf)
-     (when (buffer-file-name buf)
-       (-repoxy-update-erl-buffer-header buf)))
-   (buffer-list)))
-
-(defun -repoxy-update-erl-buffer-header(buf)
-  "Show a nice info header line in the current buffer if it is managed by repoxy"
-  (save-excursion
-    (with-current-buffer buf
-      (when (and (-repoxy-is-connected)
-                 (-repoxy-buffer-erl-source))
-        (let* ((erl-file (-repoxy-buffer-erl-source))
-               (app-name (car (-repoxy-lookup-app erl-file)))
-               (compilation-errors (length
-                                    (-repoxy-compilation-results-for-file erl-file))))
-          (setq -repoxy-buffer-has-repoxy-header-line 't)
-          (setq header-line-format
-                (concat
-                 (propertize " *REPOXY CONNECTED*   " 'face 'bold)
-                 (format "%s" app-name)
-                 (when (> compilation-errors 0)
-                   (propertize (format "  Errors/Warnings: %d" compilation-errors) 'face 'error))))))
-      (force-mode-line-update))))
-
-(defun -repoxy-undecorate-buffers()
-  "Remove a headerline and compilation result overlays from all
-buffers modified by repoxy."
-  (interactive)
-  (mapcar
-   (lambda(buf)
-     (when (buffer-file-name buf)
-       (-repoxy-undecorate-buffer buf)))
-   (buffer-list)))
-
-(defun -repoxy-undecorate-buffer(buf)
-  "Remove a headerline and compilation result overlays from a
-buffer modified by repoxy."
-  (save-excursion
-    (with-current-buffer buf
-      (when -repoxy-buffer-has-repoxy-header-line
-        (setq -repoxy-buffer-has-repoxy-header-line nil)
-        (setq header-line-format nil))
-      (when (buffer-file-name)
-        (remove-overlays 'nil 'nil 'compilation-error-overlay 't)))))
+            (repoxy-rebar-compile nil)))))
+;            (repoxy-compile-file current-file)))))
 
 (defun -repoxy-buffer-erl-source()
   "Return the expanded buffer file name, if the file opened in
@@ -495,30 +643,44 @@ buffer modified by repoxy."
                    (string-match-p "_tests?.erl$" file))))
                  file-and-dir)))))
 
-(defun -repoxy-lookup-app(file)
-  "Find the application name and base directory (parent of src/
-include/ test/) of a file, or nil if the file is not part of an
-application currently loaded by repoxy. If the file is not part
-of an application that has successfully been compiled be the most
-recent rebar invokation, return `nil'."
-  (concatenate
-   'list
-   (find file -repoxy-app-paths
-         :test (lambda(file appname-dir-pair)
-                 (let ((dir (aref appname-dir-pair 1)))
-                   (string-prefix-p
-                        (expand-file-name dir)
-                        (expand-file-name file)))))))
+(defun -repoxy-terminal-live-p(buffer)
+  "Return non-nil if the buffer and the process associated to the buffer are live."
+  (and
+   buffer
+   (buffer-live-p buffer)
+   (get-buffer-process buffer)
+   (process-live-p (get-buffer-process buffer))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Emacs integration API
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defun -repoxy-kill-buffer(buffer)
+  "Kill the process associated to a buffern and kill the buffer."
+  (if (get-buffer-process buffer)
+      (kill-process buffer))
+  (if (get-buffer-process buffer)
+      (delete-process buffer))
+  (if (bufferp buffer)
+      (kill-buffer buffer)))
 
-(defun repoxy-setup()
-  "Create all internal global variables and add the compile
-function to the save hooks of erlang files."
-  (interactive)
-  (add-hook 'find-file-hook '-repoxy-attach-to-buffer))
+(defun -repoxy-wait-for-output(buffer regexp timeout)
+  "Read the contents of `buffer' and do not return before
+`regex' was found or `timeout' seconds have expired.
+Returns the char-position of the match or nil"
+  (with-current-buffer buffer
+    (let ((retries timeout)
+          (found nil)
+          (failed nil))
+      (while (and (not found) (not failed))
+        (goto-char 1)
+        (if (null (setq found (re-search-forward regexp nil 't)))
+            (if (= retries 0)
+                (progn
+                  (message "REPOXY expected output \"%s\" not received
+                   from buffer %s within %s seconds" regexp buffer timeout)
+                  (setq failed 't))
+              (progn
+                (setq retries (1- retries))
+                (sleep-for 1)))))
+      (goto-char (point-max))
+      found)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Minor mode and menu definition
@@ -582,131 +744,8 @@ Null prefix argument turns off the mode.
   ; mode bindings
   -repoxy-mode-map)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; internal repoxy invokation functions
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defun -repoxy-is-server-running()
-  "Return non-nil if the repoxy process is active inside emacs."
-  (-repoxy-terminal-live-p -repoxy-server-buf))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; internal shell functions
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defun -repoxy-is-shell-running()
-  "Return non-nil if the shell process is active."
-  (-repoxy-terminal-live-p -repoxy-shell-buf))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; internal buffer/process functions
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defun -repoxy-run-in-terminal(command)
-  "Execute a command string an emacs terminal window using /bin/bash.
-
-The program is always executed with the project base dir as
-current working directory."
-  (let* ((default-directory (-repoxy-find-project-base-dir))
-         (result-buf (term "/bin/bash")))
-    (with-current-buffer result-buf
-      (select-window (or (get-buffer-window result-buf)
-                         (display-buffer result-buf)))
-      (term-send-raw-string (concat "cd " default-directory
-                                    " && " command "\n"))
-      result-buf)))
-
-(defun -repoxy-find-project-base-dir()
-  "Return a working directory for the current project. First
-search for a executable called 'repoxy' in the parent
-directories, when this failes, try to find a rebar.config, if that fails too
-assume \"../\" as project dir."
-  (or (-repoxy-find-in-parent-dir "repoxy")
-      (-repoxy-find-in-parent-dir "rebar.config")
-      (-repoxy-find-in-parent-dir "rebar.config.src")
-      (-repoxy-find-in-parent-dir "rebar")
-      (expand-file-name (file-name-as-directory ".."))))
-
-(defun -repoxy-find-in-parent-dir(file &optional start-dir)
-  "Find a parent directory containing 'file' starting from the
-directory of the file in the current buffer. Alternately if
-'start-dir' is non-nil start from there."
-  (let* ((current-depth 3)
-         (current-file (buffer-file-name (current-buffer)))
-         (base-dir nil)
-         (path (or start-dir
-                   (if current-file
-                       (file-name-directory (expand-file-name current-file))
-                     (expand-file-name default-directory)))))
-    (while (and (>= current-depth 0) (null base-dir))
-      (if (file-regular-p (concat path file))
-          (setq base-dir path)
-        (progn
-          (setq path
-                (expand-file-name
-                 (concat path (file-name-as-directory ".."))))
-          (setq current-depth (1- current-depth)))))
-    base-dir))
-
-(defun -repoxy-terminal-live-p(buffer)
-  "Return non-nil if the buffer and the process associated to the buffer are live."
-  (and
-   buffer
-   (buffer-live-p buffer)
-   (get-buffer-process buffer)
-   (process-live-p (get-buffer-process buffer))))
-
-(defun -repoxy-kill-buffer(buffer)
-  "Kill the process associated to a buffern and kill the buffer."
-  (if (get-buffer-process buffer)
-      (kill-process buffer))
-  (if (get-buffer-process buffer)
-      (delete-process buffer))
-  (if (bufferp buffer)
-      (kill-buffer buffer)))
-
-(defun -repoxy-wait-for-output(buffer regexp timeout)
-  "Read the contents of `buffer' and do not return before
-`regex' was found or `timeout' seconds have expired.
-Returns the char-position of the match or nil"
-  (with-current-buffer buffer
-    (let ((retries timeout)
-          (found nil)
-          (failed nil))
-      (while (and (not found) (not failed))
-        (goto-char 1)
-        (if (null (setq found (re-search-forward regexp nil 't)))
-            (if (= retries 0)
-                (progn
-                  (message "REPOXY expected output \"%s\" not received
-                   from buffer %s within %s seconds" regexp buffer timeout)
-                  (setq failed 't))
-              (progn
-                (setq retries (1- retries))
-                (sleep-for 1)))))
-      (goto-char (point-max))
-      found)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; internal socket functions
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defun -repoxy-is-connected()
-  "Return non-nil if a connection to a repoxy server is currently open."
-  (and
-   -repoxy-socket
-   (eq (process-status -repoxy-socket) 'open)))
-
-(defun -repoxy-socket-sentinel(process reason)
-  "Reset the global variables and close the socket"
-  (repoxy-disconnect)
-  (message "REPOXY sentinel received: %s" reason))
-
-(defun -repoxy-capture-output(process output)
-  "`read' the s-expression received from the server until 'read'
-was able to parse them, then update -repoxy-result with the
-s-expression."
-  (setq -repoxy-receive-buffer (concat -repoxy-receive-buffer output))
-  (message "REPOXY received output %s" output)
-  (if (ignore-errors (setq repoxy-result (read -repoxy-receive-buffer)))
-      (setq -repoxy-receive-buffer "")))
+(defun repoxy-setup()
+  "Create all internal global variables and add the compile
+function to the save hooks of erlang files."
+  (interactive)
+  (add-hook 'find-file-hook '-repoxy-attach-to-buffer))
