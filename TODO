@@ -1,0 +1,7 @@
+Fix <prev-error>
+write "no application" instead of nil
+Update the application defs when refreshing
+Seperate start-repoxy server from rebuild-all
+create A Command queue for repoxy interaction
+make module/function menu
+add skels
