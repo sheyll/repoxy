@@ -1,5 +1,7 @@
 (provide 'repoxy-emacs)
 (require 'cl)
+(require 'repoxy-erl-templates)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; User defined vairable section.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -454,6 +456,7 @@ recent rebar invokation, return `nil'."
   "Create all internal global variables and add the compile
 function to the save hooks of erlang files."
   (interactive)
+  (repoxy-templates-generate)
   (add-hook 'find-file-hook '-repoxy-attach-to-buffer))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -462,35 +465,35 @@ function to the save hooks of erlang files."
 
 (defvar -repoxy-mode-map
   (let ((the-map
-         '(keymap
-           (menu-bar .
-                     (keymap
-                      (repoxy "Repoxy" .
-                               (keymap
-                                (sep1 . (menu-item "Repoxy:"))
-                                (sep2 . (menu-item "--"))
-                                (repoxy-run-skel .
-                                                 (menu-item "Run Repoxy Server"
-                                                            repoxy-run :keys "C-c C-v c"))
-                                (repoxy-kill-skel .
-                                                 (menu-item "Kill Repoxy Server"
-                                                            repoxy-kill :keys "C-c C-v d"))
-                                (repoxy-shell-skell .
-                                                 (menu-item "Open Repoxy RemShell"
-                                                            repoxy-shell :keys "C-c C-v d"))
-                                (sep3 . (menu-item "--"))
+         `(keymap
+           (menu-bar
+            keymap
+            (repoxy "Repoxy" .
+                    (keymap
+                     (sep1 . (menu-item "Repoxy:"))
+                     (sep2 . (menu-item "--"))
+                     (repoxy-run-skel .
+                                      (menu-item "Run Repoxy Server"
+                                                 repoxy-run :keys "C-c C-v c"))
+                     (repoxy-kill-skel .
+                                       (menu-item "Kill Repoxy Server"
+                                                  repoxy-kill :keys "C-c C-v d"))
+                     (repoxy-shell-skell .
+                                         (menu-item "Open Repoxy RemShell"
+                                                    repoxy-shell :keys "C-c C-v d"))
+                     (sep3 . (menu-item "--"))
 
-                                (sep4 . (menu-item "Rebar:"))
-                                (sep5 . (menu-item "--"))
-                                (refresh-skel .
-                                                 (menu-item "clean/get-deps/compile"
-                                                            repoxy-rebar-clean-compile :keys "C-c C-v r"))
-                                (sep6 . (menu-item "--"))
-                                (sep7 . (menu-item "Emacs:"))
-                                (toggle-impl-test-skel .
-                                                 (menu-item "Toggle between test/impl"
-                                                            repoxy-toggle-impl-test :keys "<F5>"))
-                                )))))))
+                     (sep4 . (menu-item "Rebar:"))
+                     (sep5 . (menu-item "--"))
+                     (refresh-skel .
+                                   (menu-item "clean/get-deps/compile"
+                                              repoxy-rebar-clean-compile :keys "C-c C-v r"))
+                     (sep6 . (menu-item "--"))
+                     (sep7 . (menu-item "Emacs:"))
+                     (toggle-impl-test-skel .
+                                            (menu-item "Toggle between test/impl"
+                                                       repoxy-toggle-impl-test :keys "<F5>"))))
+                        ,repoxy-templates-menu))))
     (define-key the-map (kbd "C-c C-v c") 'repoxy-run)
     (define-key the-map (kbd "C-c C-v d") 'repoxy-kill)
     (define-key the-map (kbd "C-c C-v s") 'repoxy-shell)

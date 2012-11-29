@@ -24,18 +24,20 @@
     file. NOTE: setting this variable after calling
     repoxy-templates-generate has no effects.")
 
+(defconst repoxy-templates-menu
+  '(repoxy-templates
+    "Repoxy Templates"
+    keymap
+    (e00 . (menu-item "Private function"    tempo-template-rpx-fun-priv))
+    (e01 . (menu-item "Documented function" tempo-template-rpx-fun-doc))
+    (e02 . (menu-item "EUnit module header" tempo-template-rpx-test-header))
+    (e03 . (menu-item "Test Case w/ Mock"   tempo-template-rpx-test-case-em))
+    (e04 . (menu-item "HRL frame"           tempo-template-rpx-rpx-hrl-header)))
+  "Menu/Keymap containing all repoxy templates - adapt as you see fit.")
+
 (defun repoxy-templates-generate()
   "Initialise the templates."
   (setq tempo-interactive t)
-  (global-set-key [menu-bar repoxy-templates]
-   '("Repoxy Templates"
-     keymap
-      (e00 "Private function"   . tempo-template-rpx-fun-priv)
-      (e01 "Documented function" . tempo-template-rpx-fun-doc)
-      (e02 "EUnit module header" . tempo-template-rpx-test-header)
-      (e03 "Test Case w/ Mock"   . tempo-template-rpx-test-case-em)
-      (e04 "HRL frame"           . tempo-template-rpx-rpx-hrl-header)))
-
   (tempo-define-template
    "rpx-fun-doc"
    '("%%------------------------------------------------------------------------------" n
@@ -112,7 +114,6 @@
      "-endif. %% " (repoxy-templates-buffer_module_name) n)
    nil
    "Create an erlang header file frame."))
-
 
 (defun repoxy-templates-buffer_module_name()
   ""
