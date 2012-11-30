@@ -11,3 +11,8 @@ ebin/*
 repoxy
 src/repoxy_sexp_parser.erl
 src/repoxy_sexp_scanner.erl
+.eunit
+deps
+*.o
+*.beam
+*.plt
