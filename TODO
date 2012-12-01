@@ -1,0 +1,1 @@
+make menu items disabled with setting a `menu-enable' property the the symbol that is a REAL-BINDING for
