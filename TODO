@@ -1,3 +1,192 @@
+Research:
+---------
+popup window
+
+
+
+
+Infrastructure:
+---------------
+ - Tree view
+ - improve tcp comm with simple protocol to include the number of lines that
+   will be sent
+ - start several repoxy instances at once
+
+ - write easy menu.el
+
+ - scenegraph pattern!!
+    - create abstract project model
+ - possibly diffrent UI visitors for displaying
+ - add cleanup management, the abstract project model must contain
+   - files to close
+   - buffers to close?
+   - buffers to clear?
+   - keybindings/menu to remove?
+   - global variables to update
+   - overlays to remove
+   - visitors that clean up the project-model
+
+
+
+Add global settings:
+--------------------
+auto start repoxy server for project
+repoxy path
+
+code editing:
+======================================
+
+execution/evaluation:
+---------------------
+run/evaluate runnable
+trace runnable
+cover runnable
+profile runnable
+debug runnable
+
+code creation/templates:
+------------------------
+insert module doc
+insert function
+insert exported function
+create test for function
+create new module
+add behviour implementation
+add gen_server call + api + handle_call clause + export
+add gen_server cast + api + handle_call clause + export
+add gen_fsm call + api + handle_call clause + export
+add gen_fsm cast + api + handle_call clause + export
+add supervisor sup-child
+add supervisor worker-child
+
+completion:
+-----------
+includefile-completion
+macro completion + suggest includefile
+record completion + suggest includefile
+record field completion
+local var completion
+local function call completion
+imported function call completion
+module:function completion
+atom completion
+
+navigation:
+-----------
+jump to definition:
+  - of a function | macro | type | behaviour | callback
+jump to reference:
+jump to tests
+
+refactoring:
+------------
+rename module
+rename function
+rename local variable
+add function parameter
+remove function parameter
+
+
+manage servers:
+---------------
+ - offer create new rebar project - select template
+
+ - (all rpx-prjs prj (tree "Project " (rpx-prj-name prj))
+   - manage repoxy
+      - (t-button "Start Repoxy" "Stop Repoxy" (rpx-prj-rpx-runp proj) (rpx-prj-rpx-start proj) (rpx-prj-rpx-stop proj))
+      - (t-button "restart the whole crap")
+      - (oh no just kill it)
+      - (swtich to repoxy log buffer) -- the repoxy logbuffer contains the
+                                         embedded controls show here
+   - rebar
+      - clean get deps compile
+      - (swtich to remsh term)
+      - (switch to rebar/compiler output)
+      - Errors: (message file/line)
+      - Warnings: (message file/line)
+      - run rebar command
+   - Debug sessions:
+      -session: node
+        -active processes:
+           pid ([>|] [/\] [>>] [||] [x]) <Stacktrace> - current vars
+        -breakpoints: active conditional (file/line)
+        -(stop debugging)
+      - remote_debug_app (attach/detach)
+
+   - traces:
+       -trace-result title [>] [||] [x], text is clickable
+
+   - Content:
+      release (from release file...)
+        -(add app) (add lib)
+        -apps (number of warns, number of errs)
+          -priv dir
+          -header files
+          -Analysis:
+            -OTP tree
+            -test coverage
+            -performace analysis
+            -uses (app-ver/mod ++ include headers!!)
+            -used by (app-ver/mod ++ include headers!!)
+          -(Add module)
+            - opt behaviuors
+            - behaviour from rebar deps
+            - behavour from project
+            - simple
+          -module
+            - otp info:
+               type of registration
+               implemented otp behaviours
+               supervised by analysis
+            - module attributes -last built - author
+            - module exports
+            - add behviour
+            - get edoc
+            - source file
+            - emacs buffer
+              - coverage-overlay
+              - compilation-overlay
+              - eunit-overlay
+              - trace-overlay
+            - functions(highlight exported)
+              -from behaviour
+              -edoc
+              -spec
+              -args name/type
+              -local vars
+              -called app/module/fun
+              -calls app/module/fun
+            -types
+              -used as arg by app/mod/fun
+              -used as ret by app/mod/fun
+            -macros
+            -records
+            -includes
+            -used by
+              -app/module
+
+   - Remote Nodes:
+     -(add title | host name secret)
+     -host node secret
+       - (ping)
+       - (remsh)
+       - OTP Live Tree
+         In tree:
+          - Apps: (hot upload local app (RISKY!)) (start/stop/restart) (trace)(debug)
+             - modules (hot upload local mod (RISKY!)) (trace)(debug)
+             - supervision process tree (send msg/send exit/stacktrace)
+             - (attach error_logger handler)
+
+Context Detection
+
+(global-set-key (kbd "C-SPC") 'set-mark-command)
+
+small:
+------
+
+User can Alt-. on include file
+User can Alt-. on macro
+
 Fix <prev-error>
 write "no application" instead of nil
 Update the application defs when refreshing

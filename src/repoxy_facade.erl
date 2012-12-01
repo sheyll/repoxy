@@ -3,7 +3,8 @@
 %%% @copyright (C) 2012, Sven Heyll
 %%% @doc
 %%% Process incoming requests coming in via `handle_request' in order
-%%% to provide the functionality used by clients.
+%%% to provide the functionality used by clients. This is a facade for
+%%% `repoxy_core'
 %%% @end
 %%% Created : 13 Sep 2012 by Sven Heyll <sven.heyll@gmail.com>
 %%%-------------------------------------------------------------------
