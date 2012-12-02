@@ -1,8 +1,42 @@
+TOP TODO
+---------
+!! When adding a new module, do a complete rebar build so the .app file is updated !!
+
+Repoxy commands TODO
+--------------------
+request: 'rebar compile'
+result: 'compiled apps' 'failed-apps'
+
+request: 'cover-compile-app'
+result: 'ok'
+
+request: analyze coverage
+result: coverage markers
+
+request: 'cover-uncompile-app'
+result: 'ok'
+
+request: 'run xref'
+result: xref markers
+
+request: 'run dialyzer'
+result: xref markers
+
+request: 'run eunit'
+result: eunit markers
+
+request: get-source-context (file, cursor position)
+result: nested context from erl_dodger ++ erl_comment_scan ++ erl_scan ++ erl_syntax_lib
+
+request: analyze-source file
+result: nested context from erl_dodger ++ erl_comment_scan ++ erl_scan ++ erl_syntax_lib
+
+
+request:
+
 Research:
 ---------
 popup window
-
-
 
 
 Infrastructure:
