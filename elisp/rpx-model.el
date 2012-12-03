@@ -196,7 +196,7 @@ buffer.")
 buffer visits the file mentioned here, it will automatically be
 pimped with overlays. meta info and what-not.")
 
-(defclass rpx-prj-app (eieio-named)
+(defclass rpx-prj-app ()
   ((descriptor
     :type (or null rpx-otp-app-descriptor)
     :initarg :descriptor
@@ -238,6 +238,12 @@ pimped with overlays. meta info and what-not.")
 ;; method: dependencies
 ;; method: dependent
 
+(defclass rpx-prj-remote-node ()
+  ((erlnode :type rpx-erlang-node
+            :initarg erlnode
+            :documentation "Connection details for an erlang node."))
+  "Encapsulates a project associated erlang node.")
+
 (defclass rpx-prj ()
   ((base-dir  :initarg :base-dir
               :initform ""
@@ -245,6 +251,11 @@ pimped with overlays. meta info and what-not.")
               :documentation "Top level directory of the erlang project.")
    (server :initform nil
            :type (or null rpx-server))
+   (remote-nodes :type (satisfies (lambda (a) (rpxu-list-of a rpx-prj-remote-node)))
+                 :initarg remote-nodes
+                 :initform nil
+                 :documentation "A list of remote nodes to upload
+                 code to, to debug on and to open remshells to")
    (rel-descriptor :initargs :rel-descriptor
                    :type (or null rpx-otp-rel-descriptor))
    (apps :type (satisfies (lambda(a) (rpxu-list-of a rpx-prj-app)))
