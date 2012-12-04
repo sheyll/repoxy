@@ -21,8 +21,57 @@
 ;; Functions to find erlang projects in a user customizable way.
 
 ;;; Code:
+
 (require 'rpxu)
 
+(defun rpx-project-finder-prompt()
+  "Prompt the use for a project base directory of the file in the current buffer,
+and suggest a good candidate."
+  (read-from-minibuffer
+   "Set project directory: "
+   (rpx-project-finder-guess-base-dirs (buffer-file-name))))
+
+(defun rpx-project-finder-guess-base-dirs(file)
+  "Return a list of guesses for the base directory of the project
+file belongs to."
+  (let* ((abs-file
+          (expand-file-name file))
+         (file-dir
+          (file-name-directory abs-file))
+         (parent-dir
+          (expand-file-name
+           (concat file-dir (file-name-as-directory "../"))))
+
+         (rebar-dependency-guess
+          (when (string-match "/deps/.+" parent-dir)
+            (rpx-project-finder-find-rebar-config
+               (replace-match "" nil nil parent-dir nil) 0)))
+
+         (rebar-rel-guess
+          (when (string-match "/apps/.+" parent-dir)
+            (rpx-project-finder-find-rebar-config
+               (replace-match "" nil nil parent-dir nil) 0)))
+
+         (rebar-app-guess
+          (rpx-project-finder-find-rebar-config parent-dir 0))
+
+         (otp-guess
+          (when (or (string= (file-name-directory file-dir) "src")
+                    (string= (file-name-directory file-dir) "test")
+                    (string= (file-name-directory file-dir) "include"))
+            (file-name-directory file-dir))))
+    (or
+     rebar-dependency-guess
+     rebar-rel-guess
+     rebar-app-guess
+     otp-guess
+     file-dir)))
+
+(defun rpx-project-finder-find-rebar-config(&optional start-dir max-depth)
+  "Internal function to find a rebar config in the current or parent directory."
+  (or (rpxu-find-in-parent-dir "rebar.config" start-dir max-depth)
+      (rpxu-find-in-parent-dir "rebar.config.src" start-dir max-depth)
+      (rpxu-find-in-parent-dir "rebar" start-dir max-depth)))
 
 
 (provide 'rpx-project-finder)

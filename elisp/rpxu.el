@@ -42,6 +42,28 @@ only elements of type 't'."
   `(and (listp ,e)
         (or (null ,e) (typep (car ,e) ,typ))))
 
+(defun rpxu-find-in-parent-dir(file &optional start-dir max-depth)
+  "Find a parent directory containing 'file' starting from the
+directory of the file in the current buffer. Alternately if
+'start-dir' is non-nil start from there."
+  (let* ((current-depth (or max-depth 3))
+         (current-file (buffer-file-name (current-buffer)))
+         (base-dir nil)
+         (path (or (file-name-as-directory start-dir)
+                   (if current-file
+                       (file-name-directory (expand-file-name current-file))
+                     (expand-file-name default-directory)))))
+    (while (and (>= current-depth 0) (null base-dir))
+      (if (file-exists-p (concat path file))
+          (setq base-dir path)
+        (progn
+          (setq path
+                (expand-file-name
+                 (concat path (file-name-as-directory ".."))))
+          (setq current-depth (1- current-depth)))))
+    base-dir))
+
+
 (provide 'rpxu)
 
 ;; Local variables:
