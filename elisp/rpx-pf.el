@@ -1,4 +1,4 @@
-;;; rpx-project-finder.el --- Scan directories for erlang projects.
+;;; rpx-pf.el --- The Repoxy Project Finder
 
 ;; Copyright (C) 2012 Sven Heyll
 
@@ -18,20 +18,64 @@
 
 ;;; Commentary:
 
-;; Functions to find erlang projects in a user customizable way.
+;; These functions initiate the management of erlang projects in a user
+;; customizable way. Contains the hook that checks if an opened file is part of
+;; an erlang project.
 
 ;;; Code:
 
-(require 'rpxu)
+(provide 'rpx-pf)
 
-(defun rpx-project-finder-prompt()
+(require 'rpxu)
+(require 'rpx-prj)
+
+;;; Customizable variables:
+
+(defcustom rpx-cust-autostart-policy :prompt
+  "When repoxy detects an erlang project, that is not managed,
+what should it do?"
+  :type '(radio
+          (const :tag "Automatically manage it." :auto-start)
+          (const :tag "Prompt if it should be managed" :prompt))
+  :group 'repoxy)
+
+(defcustom rpx-cust-project-dir-prompt-policy :guessing-failed
+  "To manage a project repoxy must know the top-level
+directory. Normally repoxy can guess this. This option defines
+the policy for prompting for the top level directory."
+  :type '(radio
+          (const :tag "Always prompt for the project directory" :always)
+          (const :tag "Prompt if guessing failed." :guessing-failed))
+  :group 'repoxy)
+
+;;; Global variables
+
+(defvar rpx-pf-ignored-paths '()
+  "A list paths that should be ignored when repoxy searches for
+erlang projects. This list contains all open projects as well as
+those that the user did not want to manage.")
+
+;;; Functions
+
+(defun rpx-pf-start()
+  "Add to find file hook, when an erlang file was opened, try to
+manage it."
+  (add-hook 'find-file-hook 'rpx-pf-find-file-hook))
+
+(defun rpx-pf-find-file-hook()
+  "Depending on the user settings, eiter start a project for a
+file, or irgnore the file. Remember which projects shall be ignored."
+  (interactive)
+  (when (rpx-pf-buffer-not-ignored)
+    (when
+)
+
+(defun rpx-pf-prompt(default-dir)
   "Prompt the use for a project base directory of the file in the current buffer,
 and suggest a good candidate."
-  (read-from-minibuffer
-   "Set project directory: "
-   (rpx-project-finder-guess-base-dirs (buffer-file-name))))
+  (read-from-minibuffer "Set project directory: " default-dir))
 
-(defun rpx-project-finder-guess-base-dirs(file)
+(defun rpx-pf-guess-base-dirs(file)
   "Return a list of guesses for the base directory of the project
 file belongs to."
   (let* ((abs-file
@@ -44,16 +88,16 @@ file belongs to."
 
          (rebar-dependency-guess
           (when (string-match "/deps/.+" parent-dir)
-            (rpx-project-finder-find-rebar-config
+            (rpx-pf-find-rebar-config
                (replace-match "" nil nil parent-dir nil) 0)))
 
          (rebar-rel-guess
           (when (string-match "/apps/.+" parent-dir)
-            (rpx-project-finder-find-rebar-config
+            (rpx-pf-find-rebar-config
                (replace-match "" nil nil parent-dir nil) 0)))
 
          (rebar-app-guess
-          (rpx-project-finder-find-rebar-config parent-dir 0))
+          (rpx-pf-find-rebar-config parent-dir 0))
 
          (otp-guess
           (when (or (string= (file-name-directory file-dir) "src")
@@ -64,21 +108,17 @@ file belongs to."
      rebar-dependency-guess
      rebar-rel-guess
      rebar-app-guess
-     otp-guess
-     file-dir)))
+     otp-guess)))
 
-(defun rpx-project-finder-find-rebar-config(&optional start-dir max-depth)
+(defun rpx-pf-find-rebar-config(&optional start-dir max-depth)
   "Internal function to find a rebar config in the current or parent directory."
   (or (rpxu-find-in-parent-dir "rebar.config" start-dir max-depth)
       (rpxu-find-in-parent-dir "rebar.config.src" start-dir max-depth)
       (rpxu-find-in-parent-dir "rebar" start-dir max-depth)))
-
-
-(provide 'rpx-project-finder)
 
 ;; Local variables:
 ;; byte-compile-dynamic: t
 ;; byte-compile-warnings: (not cl-functions)
 ;; End:
 
-;;; rpx-client.el ends here
+;;; rpx-pf.el ends here
