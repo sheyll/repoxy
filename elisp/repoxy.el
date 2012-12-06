@@ -50,7 +50,7 @@
 (defun repoxy-start()
   "Start scanning buffers for erlang project files and create
 a menu for repoxy access."
-  (rpx-pf-start)))
+  (rpx-pf-start))
 
 
 (provide 'repoxy)

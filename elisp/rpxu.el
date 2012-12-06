@@ -24,6 +24,8 @@
 
 ;;; Code:
 
+(provide 'rpxu)
+
 (require 'cl)
 (require 'eieio)
 (require 'eieio-base)
@@ -63,8 +65,14 @@ directory of the file in the current buffer. Alternately if
           (setq current-depth (1- current-depth)))))
     base-dir))
 
+(defun rpxu-prefixed-by-p(s p)
+  "Return 't' of p is a prefix of s"
+  (equal 0 (string-match (regexp-quote p) s)))
 
-(provide 'rpxu)
+(ert-deftest rpxu-prefixed-by-tests()
+  "/a/b/x should be a prefix of /a/b/x/y/z"
+  (should (rpxu-prefixed-by-p "/a/b/x/y/z" "/a/b/x")))
+
 
 ;; Local variables:
 ;; byte-compile-dynamic: t

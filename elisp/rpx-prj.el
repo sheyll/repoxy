@@ -29,6 +29,9 @@
 (defvar rpx-projects '()
   "A list of rpx-prj objects that are currently managed by repoxy.")
 
+(defun rpx-prj-manage-project (prj-base-dir)
+  "Initiate management of a project contained in prj-base-dir"
+  (message "Managing %s" prj-base-dir))
 
 (provide 'rpx-prj)
 
