@@ -6,15 +6,12 @@
 (require 'speedbar)
 (require 'easymenu)
 
-
-(setq lexical-binding t)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; BEGINING OF META
 ;; END OF META
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defclass rpx-erlang-node (eieio-named)
+(defclass rpx-erlang-node ()
   ((node :type string
          :initarg :node
          :custom string
@@ -29,7 +26,7 @@
   "An erlang node that can be connected to via erl -remsh")
 
 
-(defclass rpx-server-job (eieio-named)
+(defclass rpx-server-job ()
   ((to-send :type list
             :initarg :to-send
             :documentation "The lisp expression to send."
@@ -42,7 +39,7 @@
                :initform ignore))
   "A job for the repoxy server a string to send to the repoxy server.")
 
-(defclass rpx-tcp-client (eieio-named)
+(defclass rpx-tcp-client ()
  ((host             :type string
                     :initform "localhost"
                     :initarg :host)
@@ -61,7 +58,7 @@
                     :initform :idle))
  "A repoxy client that can queue and send commands to a repoxy server.")
 
-(defclass rpx-server (eieio-named)
+(defclass rpx-server ()
   ((rpx-process          :type process
                          :initarg :rpx-process)
    (erlang-node          :type rpx-erlang-node
@@ -75,198 +72,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; erlang/otp classes
 
-(defclass rpx-otp-app-id (eieio-named)
-  ((vsn :type string
-        :initarg :vsn
-        :initform "0.0"
-        :documentation "Version"))
-  "Name and version of an OTP application. NOTE: the name slot is inherited")
-
-(defclass rpx-otp-rel-descriptor (eieio-named)
-  ((rel-file :type string
-            :initarg :rel-file
-            :initform ""
-            :documentation "An OTP conform .rel file")
-  (rel-version :type string
-               :initarg :rel-version
-               :initform ""
-               :documentation "Version of a release.")
-  (app-ids :type (satisfies (lambda(a) (rpxu-list-of a rpx-otp-app-id)))
-           :initarg :app-ids
-           :initform '()
-           :documentation "A list of 'rpx-otp-app-id' objects
-           that are bundled in the release."))
-  "An OTP release descriptor representation. NOTE: the name slot
-  is inherited.")
-
-(defclass rpx-otp-app-descriptor (eieio-named)
-  ((id
-    :type rpx-otp-app-id
-    :initarg :id
-    :documentation "Id and version of the application")
-   (descriptor-file
-    :type string
-    :initarg :descriptor-file
-    :initform ""
-    :documentation "The file name of the OTP
-                    conform application descriptor.")
-   (description
-    :type string
-    :initarg :description
-    :initform ""
-    :documentation "Description of application")
-   (modules
-    :type (satisfies (lambda(a) (rpxu-list-of a string)))
-    :initarg :modules
-    :initform '()
-    :documentation "List of module names of this
-            application.")
-   (registered
-    :type (satisfies (lambda(a) (rpxu-list-of a string)))
-    :initarg :registered
-    :initform '()
-    :documentation "Registered names of processes in
-               the application.")
-   (included_applications
-    :type (satisfies (lambda(a) (rpxu-list-of a string)))
-    :initarg :included_applications
-    :writer set-included_applications
-    :initform '()
-    :documentation "Applications which must
-                          be loaded prior to this application.")
-   (applications
-    :type (satisfies (lambda(a) (rpxu-list-of a string)))
-    :initarg :applications
-    :initform '()
-    :documentation "Applications which must be
-                 started before this application.")
-   (start-function
-    :type (or string null)
-    :initarg :start-function
-    :initform nil
-    :documentation "If not a library application,
-                   the name of the module that implements the
-                   'applicaiton' behaviour and starts the
-                   application."))
-  "Describes important properties of an application, as defined
-   in the '.app' file.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defclass rpx-prj-source ()
-  ((source :type rpx-erl-source
-           :initarg :source
-           :documentation "The definition of this source file.")
-   (emacs-buffer :type (or buffer null)
-                 :initarg :emacs-buffer
-                 :initform nil
-                 :documentation "Reference to a buffer holding
-this source file, or nil if the source is not open in any
-buffer.")
-   (is-dirty :type boolean
-             :initarg :is-dirty
-             :initform t
-             :documentation "Indicates that re-computation of the
-             fields is required.")
-   (info-markers :type (satisfies (lambda(a) (rpxu-list-of a rpx-prj-source-marker)))
-                 :initarg :info-markers
-                 :initform '()
-                 :documentation "A list of
-                       'rpx-prj-source-marker' objects
-                       concerning informational messages.")
-   (warning-markers :type (satisfies (lambda(a) (rpxu-list-of a rpx-prj-source-marker)))
-                    :initarg :warning-markers
-                    :initform '()
-                    :documentation "A list of
-                       'rpx-prj-source-marker' objects concerning
-                       warnings about this source file.")
-   (error-markers :type (satisfies (lambda(a) (rpxu-list-of a rpx-prj-source-marker)))
-                  :initarg :error-markers
-                  :initform '()
-                  :documentation "A list of
-                       'rpx-prj-source-marker' objects concerning
-                       errors in the this source file.")
-   (coverage-markers :type (satisfies (lambda(a) (rpxu-list-of a rpx-prj-source-marker)))
-                     :initarg :coverage
-                     :initform '()
-                     :documentation "A list
-             'rpx-prj-coverage-markers' objects concerning this
-             source."))
-" This class also contains coverage and compilation results. If a
-buffer visits the file mentioned here, it will automatically be
-pimped with overlays. meta info and what-not.")
-
-(defclass rpx-prj-app ()
-  ((descriptor
-    :type (or null rpx-otp-app-descriptor)
-    :initarg :descriptor
-    :initform nil
-    :documentation "The descriptor for the app")
-   (base-dir
-    :type string
-    :initarg :base-dir
-    :documentation "Top-level application directory.")
-   (compilation-failed
-    :type boolean
-    :initarg :compilation-failed
-    :initform t
-    :documentation "A flag indicating that the
-                       application could was not built, or the
-                       last build failed.")
-   (main-sources
-    :type (satisfies (lambda(a) (rpxu-list-of a rpx-prj-source)))
-    :initarg :src
-    :initform '()
-    :documentation "List of 'rpx-prj-source' objects that
-        reside in the app's source folder.")
-   (includes
-    :type (satisfies (lambda(a) (rpxu-list-of a rpx-prj-source)))
-    :initarg :src
-    :initform '()
-    :documentation "List of 'rpx-prj-source' objects that
-        reside in the app's include folder.")
-   (test-sources
-    :type (satisfies (lambda(a) (rpxu-list-of a rpx-prj-source)))
-    :initarg :test-src
-    :initform '()
-    :documentation "List of 'rpx-prj-source'
-        objects that reside in the app's test source folder."))
-  "A a complete tree of objects describing an OTP erlang app and
-  it's current build status.")
-
-;; method: get included by
-;; method: dependencies
-;; method: dependent
-
-(defclass rpx-prj-remote-node ()
-  ((erlnode :type rpx-erlang-node
-            :initarg erlnode
-            :documentation "Connection details for an erlang node."))
-  "Encapsulates a project associated erlang node.")
-
-(defclass rpx-prj ()
-  ((base-dir  :initarg :base-dir
-              :initform ""
-              :type string
-              :documentation "Top level directory of the erlang project.")
-   (server :initform nil
-           :type (or null rpx-server))
-   (remote-nodes :type (satisfies (lambda (a) (rpxu-list-of a rpx-prj-remote-node)))
-                 :initarg remote-nodes
-                 :initform nil
-                 :documentation "A list of remote nodes to upload
-                 code to, to debug on and to open remshells to")
-   (rel-descriptor :initargs :rel-descriptor
-                   :type (or null rpx-otp-rel-descriptor))
-   (apps :type (satisfies (lambda(a) (rpxu-list-of a rpx-prj-app)))
-         :initarg :apps
-         :initform '()
-         :documentation "A list of 'rpx-prj-app' objects that are
-         part of the project."))
-   "A class defining a repoxy managed erlang project")
-
-;; method: get dirty modules (those that were changed + this that had compiler
-;; errors)
-;; method set-compilation result for module
-;; method set-cover result for module
 (add-to-list 'load-path "~/dev/tools/elisp/")

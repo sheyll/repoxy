@@ -26,9 +26,11 @@
 
 ;;; Code:
 
-(require 'rpxu)
+(provide 'rpx-erl)
 
-(setq lexical-binding t)
+(require 'cl)
+(require 'eieio)
+(require 'rpxu)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; common attributes
@@ -156,7 +158,7 @@ optionally line and column.")
   "An erlang record.")
 
 (defclass rpx-erl-callback (rpx-erl-has-name
-                            rpx-erl-src-loc
+                            rpx-erl-has-location
                             rpx-erl-has-comment)
   () "An erlang behaviour callbak.")
 
@@ -235,11 +237,10 @@ optionally line and column.")
   "An erlang source, that might contain a module, macros, types,
 callbacks or functions.")
 
-(provide 'rpx-erl)
-
 ;; Local variables:
 ;; byte-compile-dynamic: t
 ;; byte-compile-warnings: (not cl-functions)
+;; lexical-binding: t
 ;; End:
 
 ;;; rpx-erl.el ends here

@@ -18,36 +18,30 @@
 
 ;;; Commentary:
 
-;; These functions start a Repoxy erlang node and connect to it using the
-;; proprietary TCP text protocol. Each message consists of a length field and a
-;; single s-expression or raw text. The s-expression are a super-stupid
-;; representation of erlang terms: Each erlang tuple is converted to a list,
-;; each atom is converted to a symbol with the same name and a colon in front:
-;; ":" A string is simply the string with double quotes. Lists are lists, and
-;; 2-tuples are represented as cons-cells. A message header looks like this:
-;; "Length: [0-9]+\nContent-Type: text|s-expression\n\n". After the header
-;; follows the message body.
-;;
-;; A client will start the server, at a certain base directory as found by the
-;; functions in 'rpx-project-finder.el'.
+;; These functions connect to a Repoxy Erlang node using TCP for message
+;; exchange.  Each message consists of a length field and a single s-expression
+;; or raw text. The s-expression are a super-stupid representation of erlang
+;; terms: Each erlang tuple is converted to a vector, and each atom is converted
+;; to a symbol with the same name. A string is simply the string (with double
+;; quotes). Lists are lists. A message header looks like this: "Length:
+;; [0-9]+\nContent-Type: text|s-expression\n\n". After the header follows the
+;; message body.
 ;;
 ;; The server startup and TPC port negotiation happens in 'rpx-server.el'
-;;
-;; The TCP client code that provides an asynchronous message queue for commands
-;; to send to a server is provided by 'rpx-tcp.el'
 ;;
 ;; And finally message en-/decoding is done in 'rpx-msg.el'
 
 ;;; Code:
 
 (require 'rpxu)
-(require 'rpx-project-finder)
-
 (provide 'rpx-client)
+
+;;; Functions
 
 ;; Local variables:
 ;; byte-compile-dynamic: t
 ;; byte-compile-warnings: (not cl-functions)
+;; lexical-binding: t
 ;; End:
 
 ;;; rpx-client.el ends here

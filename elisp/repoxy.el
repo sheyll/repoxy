@@ -41,6 +41,7 @@
 ;;; Code:
 
 (require 'rpx-pf)
+(require 'rpx-prj)
 (require 'rpx-main-menu)
 
 (setq lexical-binding t)
@@ -50,7 +51,9 @@
 (defun repoxy-start()
   "Start scanning buffers for erlang project files and create
 a menu for repoxy access."
-  (rpx-pf-start))
+  (rpx-pf-start)
+  (rpx-main-menu-start)
+  (rpx-prj-start))
 
 
 (provide 'repoxy)
@@ -58,6 +61,7 @@ a menu for repoxy access."
 ;; Local variables:
 ;; byte-compile-dynamic: t
 ;; byte-compile-warnings: (not cl-functions)
+;; lexical-binding: t
 ;; End:
 
 ;;; repoxy.el ends here

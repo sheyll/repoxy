@@ -36,8 +36,6 @@
 
 ;; this file can be included in all rpx-*.el files
 
-(setq lexical-binding t)
-
 (defmacro rpxu-list-of(e typ)
   "create a cl type specifier for lists that are empty or contain
 only elements of type 't'."
@@ -77,6 +75,7 @@ directory of the file in the current buffer. Alternately if
 ;; Local variables:
 ;; byte-compile-dynamic: t
 ;; byte-compile-warnings: (not cl-functions)
+;; lexical-binding: t
 ;; End:
 
 ;;; rpxu.el ends here
