@@ -25,9 +25,17 @@
    (remsh-buffer :type (or buffer null) :initform nil))
   "An erlang node that can be connected to via erl -remsh")
 
+(defclass rpx-client-msg ()
+  ((content)
+   (msg-type :type (member :s-exp-msg :text-msg :event-msg)
+             :initarg msg-type
+             :initform :s-exp-msg)
+   (length))
+  (:abstract t :documentation "A message with type, length and content fields."))
 
-(defclass rpx-server-job ()
-  ((to-send :type list
+
+(defclass rpx-client-request ()
+  ((to-send :type rpx-client-msg
             :initarg :to-send
             :documentation "The lisp expression to send."
             :initform '())
@@ -50,10 +58,15 @@
                     :initarg :process)
   (send-buf         :type buffer
                     :initarg :send-buf)
-  (active-job       :type (or rpx-server-job null)
+  (active-request   :type (or rpx-client-request null)
                     :initform nil)
-  (job-queue        :type (satisfies (lambda(a) (rpxu-list-of a rpx-server-job)))
+  (request-queue    :type (satisfies
+                           (lambda(a) (rpxu-list-of a rpx-client-request)))
                     :initform '())
+  (event-hooks      :type list
+                    :initarg event-hooks
+                    :initform nil
+                    :documentation "These functions are called when an event from the server was received")
   (status           :type (member :idle :sending :receiving :error)
                     :initform :idle))
  "A repoxy client that can queue and send commands to a repoxy server.")
