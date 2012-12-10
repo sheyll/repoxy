@@ -31,7 +31,7 @@ Starts a server on port 5678, that accpets s-expressions.
                           [file:get_cwd()]),
     process_flag(trap_exit, true),
     start_apps(),
-    repoxy_sup:start_link(),
+    repoxy_project_sup:start_link(),
     wait_for_stop(),
     stop_apps().
 

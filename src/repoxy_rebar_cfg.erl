@@ -9,31 +9,51 @@
 %%%-------------------------------------------------------------------
 -module(repoxy_rebar_cfg).
 
--export([new/0,
+-export([empty/0,
+         default/1,
          replace_with_global_config/1,
          add_operation_counter/1,
          add_vsn_cache/1,
          add_log_level/1,
          add_script_name/1,
          load_project_config/1,
-         add_proj_dir/1,
+         add_proj_dir/2,
          add_repoxy_plugin/1,
          add_keep_going/1
         ]).
 
--export_type([cfg/0]).
-
--type cfg() :: rebar_config:config().
+-include_lib("smooth/include/smooth_funs.hrl").
 
 %%------------------------------------------------------------------------------
 %% @doc
 %% Create a new empty rebar config.
 %% @end
 %%------------------------------------------------------------------------------
--spec new() ->
-                 cfg().
-new() ->
+-spec empty() ->
+                 rebar_config:config().
+empty() ->
     rebar_config:new().
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Create a rebar config filled with defaults, with project working directory
+%% `Dir'.
+%% @end
+%%------------------------------------------------------------------------------
+-spec default(string()) ->
+                 rebar_config:config().
+default(Dir) ->
+    (?compose([
+         fun replace_with_global_config/1,
+         fun add_operation_counter/1,
+         fun add_vsn_cache/1,
+         fun add_log_level/1,
+         fun add_script_name/1,
+         fun load_project_config/1,
+         ?curry(fun add_proj_dir/2, Dir),
+         fun add_repoxy_plugin/1,
+         fun add_keep_going/1
+        ])) (empty()).
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -99,8 +119,8 @@ load_project_config(Cfg) ->
 %% Add the toplevel directory of the project.
 %% @end
 %%------------------------------------------------------------------------------
-add_proj_dir(Cfg) ->
-    Cwd = filename:absname(rebar_utils:get_cwd()),
+add_proj_dir(Dir, Cfg) ->
+    Cwd = filename:absname(Dir),
     rebar_config:set_xconf(Cfg, base_dir, Cwd).
 
 %%------------------------------------------------------------------------------

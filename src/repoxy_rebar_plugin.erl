@@ -12,7 +12,8 @@
 
 -export([post_compile/2]).
 
--include("repoxy_core.hrl").
+-include("repoxy.hrl").
+-include("repoxy_project_server.hrl").
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -20,6 +21,7 @@
 %% @end
 %%------------------------------------------------------------------------------
 post_compile(Cfg, Arg) when is_list(Arg) ->
+    %% TODO add reltool.config support here??
     IsApp = string:str(Arg, ".app") =/= 0,
     if IsApp ->
             {NewCfg, _} = rebar_app_utils:app_name(Cfg, Arg),
@@ -28,14 +30,15 @@ post_compile(Cfg, Arg) when is_list(Arg) ->
             AppLibDirs = rebar_config:get_local(Cfg, lib_dirs, []),
             LibPaths = [rebar_utils:ebin_dir()|
                         expand_lib_dirs(AppLibDirs, rebar_utils:get_cwd(), [])],
-            repoxy_facade:app_compiled(#app_info{
-                                          name = AppName,
-                                          config = AppData,
-                                          lib_paths = LibPaths,
-                                          cwd = filename:absname(
-                                                  rebar_utils:get_cwd()),
-                                          erl_opts = rebar_utils:erl_opts(Cfg)
-                                         });
+            gen_fsm:send_event(?SERVER, ?app_found(
+                                           #app_info{
+                                              name = AppName,
+                                              config = AppData,
+                                              lib_paths = LibPaths,
+                                              cwd = filename:absname(
+                                                      rebar_utils:get_cwd()),
+                                              erl_opts = rebar_utils:erl_opts(Cfg)
+                                             }));
 
        true ->
             ok
