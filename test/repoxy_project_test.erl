@@ -15,6 +15,7 @@ start_stop_test() ->
     mock_add_handler(M),
     em:replay(M),
     Pid = start_server(),
+    add_handler(),
     stop_server(Pid),
     em:verify(M).
 
@@ -25,7 +26,9 @@ load_test() ->
     mock_unload_project(M),
     em:replay(M),
     Pid = start_server(),
+    add_handler(),
     repoxy_project:load(project_dir),
+    await_load(),
     stop_server(Pid),
     await_unload(),
     em:verify(M).
@@ -37,8 +40,11 @@ unload_test() ->
     mock_unload_project(M),
     em:replay(M),
     Pid = start_server(),
+    add_handler(),
     repoxy_project:load(project_dir),
-    repoxy_project:unload(project_dir),
+    await_load(),
+    repoxy_project:unload(),
+    await_unload(),
     em:verify(M),
     stop_server(Pid).
 
@@ -47,7 +53,8 @@ clean_build_test() ->
     M = em:new(),
     mock_add_handler(M),
     mock_load_project(M, project_dir),
-    em:strict(M, repoxy_project_rebar, rebar, [rebar_cfg, ['get-deps', 'compile']],
+    em:strict(M, repoxy_project_rebar, rebar,
+              [rebar_cfg, ['clean', 'get-deps', 'compile', 'repoxy_discover']],
               {function, fun(_) ->
                                  gen_fsm:send_event(?SERVER, ?app_found(app_info_1))
                          end}),
@@ -60,24 +67,33 @@ clean_build_test() ->
     mock_unload_project(M),
     em:replay(M),
     Pid = start_server(),
+    add_handler(),
     repoxy_project:load(project_dir),
+    await_load(),
     repoxy_project:clean_build(),
     receive passed -> ok end,
     stop_server(Pid),
+    await_unload(),
     em:verify(M).
 
 %% Test utils %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 mock_add_handler(M) ->
-    em:strict(M, my_handler, init, [my_arg], {return, {ok, state}}).
+    Self = self(),
+    em:strict(M, my_handler, init, [my_arg],
+              {function, fun(_) ->
+                                 Self ! added_handler,
+                                 {ok, state}
+                         end}).
 
 mock_load_project(M, Dir) ->
+    Self = self(),
     em:strict(M, repoxy_project_code, new_build_dir, [], {return, build_dir}),
     em:strict(M, repoxy_project_code, backup_node, [], {return, node_backup}),
     em:strict(M, repoxy_project_rebar, load_rebar, [Dir],
               {return, rebar_cfg}),
     em:strict(M, my_handler, handle_event, [?on_load, state],
-              {return, {ok, state}}).
+              {function, fun(_) -> Self ! on_load, {ok, state} end}).
 
 mock_unload_project(M) ->
     Self = self(),
@@ -86,31 +102,38 @@ mock_unload_project(M) ->
     em:strict(M, my_handler, handle_event, [?on_unload, state],
               {function, fun(_) -> Self ! on_unload, {ok, state} end}).
 
+add_handler() ->
+    repoxy_project_events:add_sup_handler(my_handler, my_arg),
+    receive
+        added_handler ->
+            ok
+    after 1000 ->
+            throw(expected_add_handler)
+    end.
+
 await_unload() ->
     receive
         on_unload -> ok
+    after 1000 ->
+            throw(expected_on_unload)
+    end.
+
+await_load() ->
+    receive
+        on_load -> ok
+    after 1000 ->
+            throw(expected_on_load)
     end.
 
 start_server() ->
     process_flag(trap_exit, true),
     {ok, Pid} = repoxy_project_sup:start_link(),
-    repoxy_project_events:add_sup_handler(my_handler, my_arg),
     Pid.
 
 stop_server(Pid) ->
     exit(Pid, normal),
     receive
         {'EXIT', Pid, normal} -> ok
+    after 1000 ->
+            throw(expected_stop_server)
     end.
-
-%% scan_project_test() ->
-%%     M = em:new(),
-%%     em:strict(M, my_handler, init, [my_arg], {return, {ok, state}}),
-
-%%     em:strict(M, repoxy_project_code, backup_node, [], {ok, node_backup}),
-%%     em:strict(M, repoxy_project_rebar, load_rebar, [em:any()]),
-
-%%     em:replay(M),
-%%     repoxy_project_sup:start_link(project_dir),
-%%     repoxy_project_events:add_sup_handler(my_handler, my_arg),
-%%     em:verify(M).

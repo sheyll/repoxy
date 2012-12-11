@@ -13,7 +13,7 @@ correct_children_test() ->
 
     em:strict(M, repoxy_project_events, start_link, [],
               {return, {ok, self()}}),
-    em:strict(M, repoxy_project_server, start_link, [],
+    em:strict(M, repoxy_project, start_link, [],
               {return, {ok, self()}}),
     em:strict(M, repoxy_tcp, start_link, [],
               {return, {ok, self()}}),

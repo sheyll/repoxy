@@ -10,18 +10,13 @@
 valid_message_test() ->
     InMsg = "request",
     InTerm = request,
-    OutTerm = the_response,
-    OutMsg = "the_response",
     Test = self(),
 
     M = em:new(),
 
     em:strict(M, repoxy_sexp, to_erl, [InMsg],
               {return, {ok, InTerm}}),
-    em:strict(M, repoxy_facade, handle_request, [InTerm],
-              {return, OutTerm}),
-    em:strict(M, repoxy_sexp, from_erl, [OutTerm],
-              {return, OutMsg}),
+    em:strict(M, repoxy_facade, handle_request, [InTerm]),
 
     em:replay(M),
     (catch repoxy_tcp:start_link()),
@@ -30,21 +25,22 @@ valid_message_test() ->
                                   {mode, list},
                                   {packet, raw}]),
     ok = gen_tcp:send(Sock, InMsg),
-    ?assertEqual({ok, OutMsg}, gen_tcp:recv(Sock, 0)),
-    ok = gen_tcp:close(Sock),
-    em:verify(M).
+    em:await_expectations(M),
+    ok = gen_tcp:close(Sock).
 
 
 close_command_test() ->
     InMsg = "(close)",
     InTerm = [close],
-    OutTerm = ignore,
     Test = self(),
 
     M = em:new(),
 
     em:strict(M, repoxy_sexp, to_erl, [InMsg],
-              {return, {ok, InTerm}}),
+              {function, fun(_) ->
+                                 Test ! closing,
+                                 {ok, InTerm}
+                         end}),
 
     em:replay(M),
     (catch repoxy_tcp:start_link()),
@@ -53,14 +49,12 @@ close_command_test() ->
                                   {mode, list},
                                   {packet, raw}]),
     ok = gen_tcp:send(Sock, InMsg),
-    gen_tcp:recv(Sock, 0),
-
+    receive closing -> ok end,
     {ok, Sock2} = gen_tcp:connect("localhost", 5678,
                                  [{active, false},
                                   {mode, list},
                                   {packet, raw}]),
     ok = gen_tcp:close(Sock2),
-
     em:verify(M).
 
 
@@ -70,8 +64,6 @@ multi_packet_message_test() ->
     InTermIncomplete = {error, reason},
     InTerm = request,
     InTermComplete = {ok, InTerm},
-    OutTerm = response,
-    OutMsg = "response",
     Test = self(),
 
     M = em:new(),
@@ -80,10 +72,7 @@ multi_packet_message_test() ->
               {return, InTermIncomplete}),
     em:strict(M, repoxy_sexp, to_erl, [InMsgPart1 ++ InMsgPart2],
               {return, InTermComplete}),
-    em:strict(M, repoxy_facade, handle_request, [InTerm],
-              {return, OutTerm}),
-    em:strict(M, repoxy_sexp, from_erl, [OutTerm],
-              {return, OutMsg}),
+    em:strict(M, repoxy_facade, handle_request, [InTerm]),
     em:replay(M),
     (catch repoxy_tcp:start_link()),
     {ok, Sock} = gen_tcp:connect("localhost", 5678,
@@ -95,6 +84,5 @@ multi_packet_message_test() ->
     ok = gen_tcp:send(Sock, InMsgPart1),
     receive after 500 -> ok end,
     ok = gen_tcp:send(Sock, InMsgPart2),
-    ?assertEqual({ok, OutMsg}, gen_tcp:recv(Sock, 0)),
-    ok = gen_tcp:close(Sock),
-    em:verify(M).
+    em:await_expectations(M),
+    ok = gen_tcp:close(Sock).

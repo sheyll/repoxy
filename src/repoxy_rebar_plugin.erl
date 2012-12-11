@@ -10,7 +10,7 @@
 
 -module(repoxy_rebar_plugin).
 
--export([post_compile/2]).
+-export([post_repoxy_discover/2]).
 
 -include("repoxy.hrl").
 -include("repoxy_project_server.hrl").
@@ -20,7 +20,8 @@
 %% Report all applications that rebar discovers to repoxy_facade.
 %% @end
 %%------------------------------------------------------------------------------
-post_compile(Cfg, Arg) when is_list(Arg) ->
+post_repoxy_discover(Cfg, Arg) when is_list(Arg) ->
+    io:format("REPOXY REBAR PLUGIN::post_repoxy_discover:~n ~p~n ~p~n~n", [Cfg, Arg]),
     %% TODO add reltool.config support here??
     IsApp = string:str(Arg, ".app") =/= 0,
     if IsApp ->
@@ -43,7 +44,8 @@ post_compile(Cfg, Arg) when is_list(Arg) ->
        true ->
             ok
     end;
-post_compile(_Cfg, Arg) ->
+post_repoxy_discover(Cfg, Arg) ->
+    io:format("REPOXY REBAR PLUGIN::post_repoxy_discover:~n ~p~n ~p~n~n", [Cfg, Arg]),
     ok.
 
 %%------------------------------------------------------------------------------

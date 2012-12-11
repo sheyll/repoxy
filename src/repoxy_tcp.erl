@@ -16,9 +16,7 @@
 
 %% gen_fsm callbacks
 -export([init/1,
-
          accepting/2, connected/2, need_more_data/2,
-
          handle_event/3, handle_sync_event/4, handle_info/3,
          terminate/3, code_change/4]).
 
@@ -123,10 +121,9 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 process_incoming_data(Data, State) ->
     reactivate_socket(State),
     until_request_complete(
-      send_response(
-        process_request(
-          try_to_parse(
-            concat_collected_and_new(Data, State))))).
+      process_request(
+        try_to_parse(
+          concat_collected_and_new(Data, State)))).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -143,19 +140,6 @@ until_request_complete({{ok, [close]}, _, State}) ->
     accepting(accept, State);
 until_request_complete({{ok, _Req}, _Reply, State}) ->
     {next_state, connected, State#state{collected_data = []}}.
-
-%%--------------------------------------------------------------------
-%% @private
-%%--------------------------------------------------------------------
-send_response(Complete = {{ok, [close]}, _, State}) ->
-    gen_tcp:close(State#state.csock),
-    Complete;
-send_response(Complete = {{ok, _Req}, Reply, State}) ->
-    OutMsg = repoxy_sexp:from_erl(Reply),
-    gen_tcp:send(State#state.csock, OutMsg),
-    Complete;
-send_response(Incomplete) ->
-    Incomplete.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -184,3 +168,10 @@ try_to_parse(State) ->
 %%--------------------------------------------------------------------
 concat_collected_and_new(Data, State) ->
     State#state{collected_data = State#state.collected_data ++ Data}.
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+send_event(Event, State) ->
+    OutMsg = repoxy_sexp:from_erl(Event),
+    gen_tcp:send(State#state.csock, OutMsg).
