@@ -103,6 +103,7 @@ add_log_level(Cfg) ->
 %% @end
 %%------------------------------------------------------------------------------
 add_script_name(Cfg) ->
+    %% TODO when run in OTP/Application mode escript:script_name does not exist.
     ScriptName = filename:absname(escript:script_name()),
     rebar_config:set_xconf(Cfg, escript, ScriptName).
 

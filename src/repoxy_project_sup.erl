@@ -50,7 +50,7 @@ init([]) ->
                     Restart, Shutdown, Type, [repoxy_project_events]},
     RepoxyPrj = {repoxy_project,
                     {repoxy_project, start_link, []},
-                    Restart, Shutdown, Type, [repoxy_project_events]},
+                    Restart, Shutdown, Type, [repoxy_project]},
     RepoxyTCP = {repoxy_tcp, {repoxy_tcp, start_link, []},
                  Restart, Shutdown, Type, [repoxy_tcp]},
 
