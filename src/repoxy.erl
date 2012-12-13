@@ -1,12 +1,18 @@
 %%%-------------------------------------------------------------------
-%%% @author Sven Heyll <sven.heyll@gmail.com>
+%%% @author Sven Heyll <sven@sheyllpc>
 %%% @copyright (C) 2012, Sven Heyll
 %%% @doc
-%%% Provide main/1 function to enable 'rebar escriptize'
+%%% Contains the main functions for the escriptized version as well as
+%%% an OTP application callback.
 %%% @end
-%%% Created : 13 Sep 2012 by Sven Heyll <sven.heyll@gmail.com>
+%%% Created : 12 Dec 2012 by Sven Heyll <sven@sheyllpc>
 %%%-------------------------------------------------------------------
 -module(repoxy).
+
+-behaviour(application).
+
+%% Application callbacks
+-export([start/2, stop/1]).
 
 -export([main/1, shutdown/0]).
 
@@ -31,7 +37,6 @@ Starts a server on port 5678, that accpets s-expressions.
                           [file:get_cwd()]),
     process_flag(trap_exit, true),
     start_apps(),
-    repoxy_project_sup:start_link(),
     wait_for_stop(),
     stop_apps().
 
@@ -41,13 +46,14 @@ Starts a server on port 5678, that accpets s-expressions.
 %% @end
 %%--------------------------------------------------------------------
 shutdown() ->
-    shutdown_proc ! stop.
+    shutdown_proc ! kill_pill.
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
 start_apps() ->
     application:start(sasl),
+    application:start(smooth),
     application:start(repoxy, permanent).
 
 %%--------------------------------------------------------------------
@@ -55,6 +61,7 @@ start_apps() ->
 %%--------------------------------------------------------------------
 stop_apps() ->
     application:stop(repoxy),
+    application:stop(smooth),
     application:stop(sasl).
 
 %%--------------------------------------------------------------------
@@ -62,7 +69,29 @@ stop_apps() ->
 %%--------------------------------------------------------------------
 wait_for_stop() ->
     register(shutdown_proc, self()),
+    await_kill_pill().
+
+await_kill_pill() ->
     receive
-        _KillPill ->
-            error_logger:info_msg("Shutting down...")
+        kill_pill ->
+            error_logger:info_msg("*** KILL PILL RECEIVED ***~n~nShutting down.~n");
+        Msg ->
+            error_logger:info_msg("Oh, this wasn't a kill pill: ~w~n", [Msg]),
+            await_kill_pill()
     end.
+
+%%%===================================================================
+%%% Application callbacks
+%%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+start(_StartType, _StartArgs) ->
+    repoxy_project_sup:start_link().
+
+%%--------------------------------------------------------------------
+%% @private
+%%--------------------------------------------------------------------
+stop(_State) ->
+    ok.

@@ -12,7 +12,7 @@ compile:
 	$(REBAR) get-deps
 	$(REBAR) compile
 
-test:
+test: compile
 	$(REBAR) skip_deps=true eunit
 
 clean:

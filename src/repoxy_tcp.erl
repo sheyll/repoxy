@@ -12,7 +12,7 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/0]).
+-export([start_link/0, on_project_event/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -28,9 +28,23 @@
 
 %%--------------------------------------------------------------------
 %% @doc
+%% Start a tcp server on localhost:5678
+%% @end
 %%--------------------------------------------------------------------
 start_link() ->
     gen_fsm:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%%===================================================================
+%%% repoxy_project_events callbacks
+%%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%%
+%% @end
+%%--------------------------------------------------------------------
+on_project_event(Pid, ProjectEvent) ->
+    gen_fsm:send_all_state_event(Pid, {project_event, ProjectEvent}).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -42,6 +56,7 @@ start_link() ->
 %% @private
 %%--------------------------------------------------------------------
 init([]) ->
+    repoxy_project_events:add_sup_handler(?MODULE, self()),
     gen_fsm:send_event(self(), accept),
     {ok, LSock} = gen_tcp:listen(5678, [{packet, raw},
                                         {mode, list},
@@ -86,7 +101,10 @@ need_more_data({tcp, CSock, Data}, State) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-handle_event(_Event, StateName, State) ->
+handle_event(_Event, accepting, State) ->
+    {next_state, accepting, State};
+handle_event({project_event, ProjectEvent}, StateName, State) ->
+    send_event(ProjectEvent, State),
     {next_state, StateName, State}.
 
 %%--------------------------------------------------------------------

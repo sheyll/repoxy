@@ -11,7 +11,10 @@
 %%------------------------------------------------------------------------------
 -spec load_rebar(string()) -> rebar_config:config().
 load_rebar(ProjectDir) ->
-    ok = application:load(rebar),
+    case application:load(rebar) of
+        ok -> ok;
+        {error,{already_loaded,rebar}} -> ok
+    end,
     case crypto:start() of
         ok -> ok;
         {error,{already_started,crypto}} -> ok

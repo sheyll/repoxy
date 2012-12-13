@@ -1,13 +1,15 @@
 {application, repoxy,
  [{description, "The Epoxy Coat for Rebar - enables an emacs mode for improved erlang programming"},
   {vsn, "1"},
-  {registered, [repoxy_sup,
-                repoxy_facade,
+  {registered, [repoxy_project,
+                repoxy_project_sup,
+                repoxy_project_server,
+                repoxy_project_events,
                 repoxy_tcp]},
-  {applications, [
-                  kernel,
+  {included_applications,[rebar]},
+  {applications, [kernel,
                   stdlib,
-                  rebar
-                 ]},
-  {env, []}
+                  smooth]},
+  {env, []},
+  {mod, {repoxy, []}}
  ]}.
