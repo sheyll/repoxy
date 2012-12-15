@@ -29,9 +29,9 @@ load_rebar(ProjectDir) ->
 %% Run rebar command.
 %% @end
 %%------------------------------------------------------------------------------
--spec rebar(#prj_cfg{}, [atom()] | atom()) ->
+-spec rebar(rebar_config:config(), [atom()] | atom()) ->
                    ok | {error, term()}.
-rebar(Cfg, RebarCmds) ->
+rebar(RebarCfg, RebarCmds) ->
     RebarCmds1 = if
                      is_list(RebarCmds) ->
                          if
@@ -49,7 +49,7 @@ rebar(Cfg, RebarCmds) ->
                          [RebarCmds]
                  end,
     try
-        rebar_core:process_commands(RebarCmds1, Cfg#prj_cfg.rebar_cfg),
+        rebar_core:process_commands(RebarCmds1, RebarCfg),
         ok
     catch
         C:E ->

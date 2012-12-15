@@ -15,8 +15,11 @@
 -record(app_info, {name = no_name,
                    config = no_config,
                    lib_paths = no_lib_paths,
-                   erl_opts = no_erl_opts,
-                   cwd = ""}).
+                   cwd = "",
+                   erl_opts = [],
+                   erl_eunit_opts = [],
+                   eunit_opts = [],
+                   edoc_opts = []}).
 
 -record(node_backup, {apps_loaded, code_path, loaded_modules}).
 
@@ -27,8 +30,10 @@
 
 %% Events dispatched by repoxy_project_events
 
--define(on_app_info(AppInfo), AppInfo).
+-define(on_app_load(AppInfo), {on_app_load, AppInfo}).
+-define(on_app_unload(AppInfo), {on_app_unload, AppInfo}).
 -define(on_load, on_load).
 -define(on_unload, on_unload).
+-define(on_internal_error(E), {on_internal_error, E}).
 
 -endif.

@@ -37,7 +37,6 @@ Starts a server on port 5678, that accpets s-expressions.
                           [file:get_cwd()]),
     process_flag(trap_exit, true),
     start_apps(),
-    start(ignored, ignored),
     wait_for_stop(),
     stop_apps().
 
@@ -55,13 +54,18 @@ shutdown() ->
 start_apps() ->
     application:start(sasl),
     application:start(smooth),
-    application:start(repoxy, permanent).
+    application:start(nano_trace),
+    application:start(repoxy, permanent),
+    nano_trace:start([repoxy, rebar]),
+    nano_trace:msg_depth(100).
 
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
 stop_apps() ->
+    nano_trace:stop(),
     application:stop(repoxy),
+    application:start(nano_trace),
     application:stop(smooth),
     application:stop(sasl).
 

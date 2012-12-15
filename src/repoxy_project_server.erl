@@ -51,15 +51,21 @@ no_project_loaded(?load(Dir), _State) ->
 %% @private
 %%--------------------------------------------------------------------
 project_loaded(?clean_build, S = #state{prj_cfg = PC}) ->
-    repoxy_project_rebar:rebar(
-      PC#prj_cfg.rebar_cfg,
-      ['clean', 'get-deps', 'compile', 'repoxy_discover']),
+    dispatch_errors(
+      repoxy_project_rebar:rebar(
+        PC#prj_cfg.rebar_cfg,
+        ['clean', 'get-deps', 'compile', 'repoxy_discover'])),
     {next_state, project_loaded, S};
 
 project_loaded(?app_found(AI), S = #state{prj_cfg = PC}) ->
-    NewPC = repoxy_project_code:add_app_info(AI, PC),
-    repoxy_project_code:load_app_into_node(AI),
-    repoxy_project_events:notify(?on_app_info(AI)),
+    dispatch_on_load(AI, store_app_info(load_app(unload_app(AI, S))))
+    case repoxy_project_code:load_app_into_node(AI) of
+        {ok, _} ->
+            NewPC = add_app_info(AI, PC),
+            repoxy_project_events:notify(?on_app_load(AI));
+        Err ->
+            dispatch_errors(Err)
+    end,
     {next_state, project_loaded, S};
 
 project_loaded(?unload,
@@ -68,7 +74,11 @@ project_loaded(?unload,
     unload(NodeBackup, BuildDir),
     {next_state, no_project_loaded,
      #state{prj_cfg = no_project_loaded,
-            node_backup = no_node_backup}}.
+            node_backup = no_node_backup}};
+
+project_loaded(Other, S) ->
+    dispatch_errors({error, {unexpected_event, Other}}),
+    {next_state, project_loaded, S}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -121,3 +131,34 @@ unload(NodeBackup, BuildDir) ->
     repoxy_project_code:restore_node(NodeBackup),
     repoxy_project_code:clean_build_dir(BuildDir),
     repoxy_project_events:notify(?on_unload).
+
+dispatch_errors(ok) ->
+    ok;
+dispatch_errors({ok, V}) ->
+    {ok, V};
+dispatch_errors(Err) ->
+    repoxy_project_events:notify(?on_internal_error(Err)).
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Insert an application info record into the a project config, potentially
+%% overwriting an existing configuration.
+%% @end
+%%------------------------------------------------------------------------------
+add_app_info(AppInfo, Cfg) ->
+    #app_info{name = AppName} = AppInfo,
+    #prj_cfg{app_infos = AppInfos} = Cfg,
+    NewAppInfos = lists:keystore(AppName, ?APP_NAME_POS, AppInfos, AppInfo),
+    Cfg#prj_cfg{app_infos = NewAppInfos}.
+
+
+unload_app(
+
+    dispatch_on_load(AI, store_app_info(load_app(unload_app(AI, S))))
+    case repoxy_project_code:load_app_into_node(AI) of
+        {ok, _} ->
+            NewPC = add_app_info(AI, PC),
+            repoxy_project_events:notify(?on_app_load(AI));
+        Err ->
+            dispatch_errors(Err)
+    end,

@@ -10,7 +10,7 @@
 
 -module(repoxy_rebar_plugin).
 
--export([post_repoxy_discover/2]).
+-export([repoxy_discover/2]).
 
 -include("repoxy.hrl").
 -include("repoxy_project_server.hrl").
@@ -20,15 +20,19 @@
 %% Report all applications that rebar discovers to repoxy_facade.
 %% @end
 %%------------------------------------------------------------------------------
-post_repoxy_discover(Cfg, Arg) when is_list(Arg) ->
-    io:format("REPOXY REBAR PLUGIN::post_repoxy_discover:~n ~p~n ~p~n~n", [Cfg, Arg]),
+repoxy_discover(Cfg, Arg) when is_list(Arg) ->
     %% TODO add reltool.config support here??
     IsApp = string:str(Arg, ".app") =/= 0,
     if IsApp ->
+            io:format("REPOXY REBAR PLUGIN::repoxy_discover APP: ~p~n", [Arg]),
             {NewCfg, _} = rebar_app_utils:app_name(Cfg, Arg),
             {AppName, AppData} =
                 rebar_config:get_xconf(NewCfg, {appfile, {app_file, Arg}}),
             AppLibDirs = rebar_config:get_local(Cfg, lib_dirs, []),
+            CWD = filename:absname(rebar_utils:get_cwd()),
+            ErlOpts = rebar_utils:erl_opts(Cfg),
+            ErlEUnitOpts = rebar_config:get_local(Cfg, erl_eunit_opts, []),
+            EDocOpts = rebar_config:get_local(Cfg, edoc_opts, []),
             LibPaths = [rebar_utils:ebin_dir()|
                         expand_lib_dirs(AppLibDirs, rebar_utils:get_cwd(), [])],
             gen_fsm:send_event(?SERVER, ?app_found(
@@ -36,17 +40,17 @@ post_repoxy_discover(Cfg, Arg) when is_list(Arg) ->
                                               name = AppName,
                                               config = AppData,
                                               lib_paths = LibPaths,
-                                              cwd = filename:absname(
-                                                      rebar_utils:get_cwd()),
-                                              erl_opts = rebar_utils:erl_opts(Cfg)
-                                             }));
+                                              cwd = CWD,
+                                              erl_opts = ErlOpts,
+                                              erl_eunit_opts = ErlEUnitOpts,
+                                              edoc_opts = EDocOpts}));
 
        true ->
             ok
     end;
-post_repoxy_discover(Cfg, Arg) ->
-    io:format("REPOXY REBAR PLUGIN::post_repoxy_discover:~n ~p~n ~p~n~n", [Cfg, Arg]),
+repoxy_discover(_Cfg, Arg) ->
     ok.
+
 
 %%------------------------------------------------------------------------------
 %% @private
@@ -55,5 +59,5 @@ expand_lib_dirs([], _Root, Acc) ->
     Acc;
 expand_lib_dirs([Dir | Rest], Root, Acc) ->
     Apps = filelib:wildcard(filename:join([Dir, "*", "ebin"])),
-    FqApps = [filename:join([Root, A]) || A <- Apps],
+    FqApps = [filename:absname(filename:join([Root, A])) || A <- Apps],
     expand_lib_dirs(Rest, Root, Acc ++ FqApps).

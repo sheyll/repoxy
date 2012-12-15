@@ -87,16 +87,4 @@ restore_node(#node_backup{apps_loaded = OldAppsLoaded,
 load_app_into_node(#app_info{name = Name, lib_paths = LibPaths}) ->
     code:add_pathsa(LibPaths),
     Loaded = application:load(Name),
-    {Name, Loaded}.
-
-%%------------------------------------------------------------------------------
-%% @doc
-%% Insert an application info record into the a project config, potentially
-%% overwriting an existing configuration.
-%% @end
-%%------------------------------------------------------------------------------
-add_app_info(AppInfo, Cfg) ->
-    #app_info{name = AppName} = AppInfo,
-    #prj_cfg{app_infos = AppInfos} = Cfg,
-    NewAppInfos = lists:keystore(AppName, ?APP_NAME_POS, AppInfos, AppInfo),
-    Cfg#prj_cfg{app_infos = NewAppInfos}.
+    {ok, {Name, Loaded}}.

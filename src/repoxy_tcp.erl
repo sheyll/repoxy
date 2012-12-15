@@ -94,7 +94,8 @@ need_more_data({tcp_closed, Sock}, State) ->
     error_logger:error_msg(
       "Client ~p disconnected before completing request: ~s.~n",
       [Sock, State#state.collected_data]),
-    accepting(accept, State);
+    accepting(accept, State#state{collected_data=[],
+                                  csock=no_socket});
 need_more_data({tcp, CSock, Data}, State) ->
     process_incoming_data(Data, State#state{csock = CSock}).
 
@@ -184,6 +185,8 @@ try_to_parse(State) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
+concat_collected_and_new(Data, State = #state{collected_data = []}) ->
+    State#state{collected_data = string:strip(Data, left)};
 concat_collected_and_new(Data, State) ->
     State#state{collected_data = State#state.collected_data ++ Data}.
 
