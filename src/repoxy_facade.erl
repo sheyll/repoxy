@@ -2,8 +2,10 @@
 %% repoxy_project}
 -module(repoxy_facade).
 
--export([handle_request/1]).
+-export([handle_request/1,
+         format_event/1]).
 
+-include("repoxy.hrl").
 
 %% @doc Interpret 'Term' as a Lisp-like function call. The first element of the
 %% list must be an atom, an exported function in the module {@link
@@ -26,3 +28,24 @@ handle_request([Command|Args]) ->
 handle_request(Other) ->
     error_logger:error_msg("Invalid request:~n~p~n~n", [Other]),
     ok.
+
+
+%% @doc Format events from {@link repoxy_project_events} into the
+%% 'outside-world' representation. If the term is not recognized it will be
+%% returned as is.
+-spec format_event(term()) -> term().
+format_event(?on_app_discovered(AppInfo)) ->
+    ?on_app_discovered(format_event(AppInfo));
+format_event(#app_info{name = Name,
+                       version = Version,
+                       cwd = Cwd,
+                       src_dir = Src,
+                       test_dir = Test}) ->
+    [app_info,
+     name, Name,
+     version, Version,
+     cwd, Cwd,
+     src_dir, Src,
+     test_dir, Test];
+format_event(Other) ->
+    Other.

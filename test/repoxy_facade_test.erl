@@ -27,3 +27,23 @@ handle_existing_function_exception_test() ->
 
 handle_non_existing_function_test() ->
     repoxy_facade:handle_request([non_existing_fun, arg1]).
+
+format_event_passthrough_test() ->
+    ?assertEqual(anything_else,
+                 repoxy_facade:format_event(anything_else)).
+
+format_event_on_app_load_test() ->
+    AppInfo = #app_info{name = "name",
+                        version = "version",
+                        cwd = "cwd",
+                        src_dir = "src",
+                        test_dir = "test"},
+    Res = repoxy_facade:format_event(?on_app_discovered(AppInfo)),
+    ?assertEqual(?on_app_discovered(
+                    ['app_info',
+                     'name', "name",
+                     'version', "version",
+                     'cwd', "cwd",
+                     'src_dir', "src",
+                     'test_dir', "test"]), Res),
+    ok.
