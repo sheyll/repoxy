@@ -10,6 +10,6 @@
   {applications, [kernel,
                   stdlib,
                   smooth]},
-  {env, []},
+  {env, [{tcp_port, 7979}]},
   {mod, {repoxy, []}}
  ]}.

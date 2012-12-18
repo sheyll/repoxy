@@ -30,7 +30,8 @@ erlang building and unit test execution.
 Usage: invoke repoxy from the directory where you would
 invoke rebar, i.e. the projects base directory.
 
-Starts a server on port 7979, that accpets s-expressions.
+Starts a tcp server accepting simple messages containing
+s-expressions.
 
 ">>),
     error_logger:info_msg("Running in directory \"~p\".~n",

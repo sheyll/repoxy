@@ -15,8 +15,6 @@
 
 -define(SERVER, ?MODULE).
 
--define(DEFAULT_PORT, 7979).
-
 %%%===================================================================
 %%% API functions
 %%%===================================================================
@@ -37,12 +35,7 @@ start_link() ->
 %% @private
 %%--------------------------------------------------------------------
 init([]) ->
-    Port = case application:get_env(repoxy, tcp_port) of
-               {ok, P} ->
-                   P;
-               _ ->
-                   ?DEFAULT_PORT
-           end,
+    {ok, Port} = application:get_env(repoxy, tcp_port),
 
     RestartStrategy = one_for_all,
     MaxRestarts = 1,
