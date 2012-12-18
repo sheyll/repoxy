@@ -32,11 +32,11 @@ format_event_passthrough_test() ->
     ?assertEqual(anything_else,
                  repoxy_facade:format_event(anything_else)).
 
-format_event_on_app_load_test() ->
-    AppInfo = #app_build_cfg{name = "name",
-                        cwd = "cwd",
-                        src_dir = "src",
-                        test_dir = "test"},
+format_event_app_build_cfg_test() ->
+    AppInfo = #app_build_cfg{name = name,
+                             cwd = "cwd",
+                             src_dir = "src",
+                             test_dir = "test"},
     Res = repoxy_facade:format_event(?on_app_discovered(AppInfo)),
     ?assertEqual(?on_app_discovered(
                     ['app_build_cfg',
@@ -44,4 +44,24 @@ format_event_on_app_load_test() ->
                      'cwd', "cwd",
                      'src_dir', "src",
                      'test_dir', "test"]), Res),
+    ok.
+
+format_event_prj_load_test() ->
+    PC = #prj_cfg{base_dir = "base/dir",
+                  build_dir = "build/dir"},
+    Res = repoxy_facade:format_event(?on_project_load(PC)),
+    ?assertEqual(?on_project_load(
+                    ['prj_cfg',
+                     'base_dir', "base/dir",
+                     'build_dir', "build/dir"]), Res),
+    ok.
+
+format_event_prj_unload_test() ->
+    PC = #prj_cfg{base_dir = "base/dir",
+                  build_dir = "build/dir"},
+    Res = repoxy_facade:format_event(?on_project_unload(PC)),
+    ?assertEqual(?on_project_unload(
+                    ['prj_cfg',
+                     'base_dir', "base/dir",
+                     'build_dir', "build/dir"]), Res),
     ok.

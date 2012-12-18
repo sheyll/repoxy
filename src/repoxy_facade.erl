@@ -37,13 +37,22 @@ handle_request(Other) ->
 format_event(?on_app_discovered(AppInfo)) ->
     ?on_app_discovered(format_event(AppInfo));
 format_event(#app_build_cfg{name = Name,
-                       cwd = Cwd,
-                       src_dir = Src,
-                       test_dir = Test}) ->
+                            cwd = Cwd,
+                            src_dir = Src,
+                            test_dir = Test}) ->
     [app_build_cfg,
-     name, Name,
+     name, atom_to_list(Name),
      cwd, Cwd,
      src_dir, Src,
      test_dir, Test];
+format_event(?on_project_load(PrjCfg)) ->
+    ?on_project_load(format_event(PrjCfg));
+format_event(?on_project_unload(PrjCfg)) ->
+    ?on_project_unload(format_event(PrjCfg));
+format_event(#prj_cfg{base_dir = Base,
+                      build_dir = Build}) ->
+    [prj_cfg,
+     base_dir, Base,
+     build_dir, Build];
 format_event(Other) ->
     Other.
