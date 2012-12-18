@@ -14,7 +14,7 @@ new_build_dir() ->
     {A,B,C} = now(),
     BuildDir = lists:flatten(io_lib:format("repoxy_build_~w_~w_~w", [A,B,C])),
     %% TODO make platform independent
-    AbsBuildDir = filename:join(["tmp", BuildDir]),
+    AbsBuildDir = filename:join(["/tmp", BuildDir]),
     filelib:ensure_dir(filename:join([BuildDir, "stupid-ensure-dir-hack"])),
     code:add_patha(AbsBuildDir),
     AbsBuildDir.
@@ -84,7 +84,48 @@ restore_node(#node_backup{apps_loaded = OldAppsLoaded,
 %% Load an application into the current node.
 %% @end
 %%------------------------------------------------------------------------------
-load_app_into_node(#app_info{name = Name, lib_paths = LibPaths}) ->
+load_app(#app_info{name = Name, lib_paths = LibPaths}) ->
     code:add_pathsa(LibPaths),
-    Loaded = application:load(Name),
-    {ok, {Name, Loaded}}.
+    dispatch_load_event(Name, application:load(Name)). %% TODO remove lib paths on error?
+
+%%------------------------------------------------------------------------------
+%% @private
+%%------------------------------------------------------------------------------
+dispatch_load_event(AI, Arg = {error, _}) ->
+    repoxy_project_events:notify(?on_app_load_failed(AI, Arg)), Arg;
+dispatch_load_event(AI, Arg) ->
+    repoxy_project_events:notify(?on_app_load(AI)), Arg.
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Unload an application from the current node.
+%% @end
+%%------------------------------------------------------------------------------
+unload_app(#app_info{name = Name, lib_paths = LibPaths}) ->
+    [code:del_path(LibPath) || LibPath <- LibPaths],
+    dispatch_load_event(Name, application:unload(Name)).
+
+%%------------------------------------------------------------------------------
+%% @private
+%%------------------------------------------------------------------------------
+dispatch_unload_event(AppName, Arg = {error, _}) ->
+    repoxy_project_events:notify(?on_app_unload_failed(AppName, Arg)), Arg;
+dispatch_unload_event(AppName, Arg) ->
+    repoxy_project_events:notify(?on_app_unload(AppName)), Arg.
+
+%% TODO create app_runtime_info with loaded modules
+%% TODO generat on_app_unload when project gets unloaded
+
+%% Client moves point/cursor and sends
+%% (lookup-scope app-name unsaved-data-file-name point)
+%% client clears current-scope-cache
+
+%% Server detects scope and sends
+%% (scope-info + title category line-start line-end)
+
+%% Client sends (lookup_completions scope)
+
+%% Server sends (on_completion_found scope source_template display_title rank)
+
+%% -OR- client knows parse treee and asks semantically
+%% !!! NO because: if this logic is in server: much easier to add new client

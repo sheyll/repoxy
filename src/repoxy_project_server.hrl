@@ -5,7 +5,6 @@
 
 -define(load(Dir), {load, Dir}).
 -define(unload, unload).
--define(app_found(App), {app_found, App}).
 -define(clean_build, clean_build).
 
 -endif.

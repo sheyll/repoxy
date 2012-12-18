@@ -41,3 +41,9 @@ backup_restore_node_test() ->
     ?assertEqual(false, lists:keyfind(my_module, 1, code:all_loaded())),
 
     em:verify(M).
+
+load_app_info_test() ->
+   ok. %% TODO load_app_info_test
+
+unload_app_info_test() ->
+    ok. %% TODO unload_app_info_test
