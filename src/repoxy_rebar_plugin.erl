@@ -21,15 +21,11 @@
 %% @end
 %%------------------------------------------------------------------------------
 repoxy_discover(Cfg, Arg) when is_list(Arg) ->
-    %% TODO add reltool.config support here??
     IsApp = string:str(Arg, ".app") =/= 0,
     if IsApp ->
             {NewCfg, AppName} = rebar_app_utils:app_name(Cfg, Arg),
-            AppVersion = rebar_app_utils:app_vsn(NewCfg, Arg),
             io:format("REPOXY REBAR PLUGIN::repoxy_discover APP: ~p~n",
                       [AppName]),
-            {_, AppData} = rebar_config:get_xconf(NewCfg,
-                                                  {appfile, {app_file, Arg}}),
             AppLibDirs = rebar_config:get_local(NewCfg, lib_dirs, []),
             CWD = filename:absname(rebar_utils:get_cwd()),
             ErlOpts = rebar_utils:erl_opts(NewCfg),
@@ -37,14 +33,11 @@ repoxy_discover(Cfg, Arg) when is_list(Arg) ->
             EDocOpts = rebar_config:get_local(NewCfg, edoc_opts, []),
             LibPaths = [rebar_utils:ebin_dir()|
                         expand_lib_dirs(AppLibDirs, CWD, [])],
-            %% TODO regard settings in rebar.config
             SourcePath = filename:join([CWD, "src"]),
             TestPath = filename:join([CWD, "test"]),
             repoxy_project_events:notify(?on_app_discovered(
-                                            #app_info{
+                                            #app_build_cfg{
                                                name = AppName,
-                                               version = AppVersion,
-                                               config = AppData,
                                                lib_paths = LibPaths,
                                                cwd = CWD,
                                                src_dir = SourcePath,

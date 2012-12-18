@@ -42,8 +42,8 @@ backup_restore_node_test() ->
 
     em:verify(M).
 
-load_app_info_test() ->
-   ok. %% TODO load_app_info_test
+load_app_build_cfg_test() ->
+   ok. %% TODO load_app_build_cfg_test
 
-unload_app_info_test() ->
-    ok. %% TODO unload_app_info_test
+unload_app_build_cfg_test() ->
+    ok. %% TODO unload_app_build_cfg_test

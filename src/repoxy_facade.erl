@@ -36,14 +36,12 @@ handle_request(Other) ->
 -spec format_event(term()) -> term().
 format_event(?on_app_discovered(AppInfo)) ->
     ?on_app_discovered(format_event(AppInfo));
-format_event(#app_info{name = Name,
-                       version = Version,
+format_event(#app_build_cfg{name = Name,
                        cwd = Cwd,
                        src_dir = Src,
                        test_dir = Test}) ->
-    [app_info,
+    [app_build_cfg,
      name, Name,
-     version, Version,
      cwd, Cwd,
      src_dir, Src,
      test_dir, Test];

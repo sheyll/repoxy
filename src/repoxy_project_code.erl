@@ -84,7 +84,7 @@ restore_node(#node_backup{apps_loaded = OldAppsLoaded,
 %% Load an application into the current node.
 %% @end
 %%------------------------------------------------------------------------------
-load_app(#app_info{name = Name, lib_paths = LibPaths}) ->
+load_app(#app_build_cfg{name = Name, lib_paths = LibPaths}) ->
     code:add_pathsa(LibPaths),
     dispatch_load_event(Name, application:load(Name)). %% TODO remove lib paths on error?
 
@@ -101,7 +101,7 @@ dispatch_load_event(AI, Arg) ->
 %% Unload an application from the current node.
 %% @end
 %%------------------------------------------------------------------------------
-unload_app(#app_info{name = Name, lib_paths = LibPaths}) ->
+unload_app(#app_build_cfg{name = Name, lib_paths = LibPaths}) ->
     [code:del_path(LibPath) || LibPath <- LibPaths],
     dispatch_load_event(Name, application:unload(Name)).
 

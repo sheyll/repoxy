@@ -10,19 +10,15 @@
 -define(APP_NAME_POS, 2).
 
 %% NOTE: APP_NAME_POS must contain the element index in the record tuple
-%% of #app_info.name
+%% of #app_build_cfg.name
 
--record(app_info, {name = no_name,
-                   version = no_version,
-                   config = no_config,
+-record(app_build_cfg, {name = no_name,
                    lib_paths = [],
                    cwd = no_cwd,
                    src_dir = no_src_dir,
                    test_dir = no_test_dir,
-                   modules = [],
                    erl_opts = [],
                    erl_eunit_opts = [],
-                   eunit_opts = [],
                    edoc_opts = []}).
 
 -record(node_backup, {apps_loaded, code_path, loaded_modules}).
@@ -30,7 +26,7 @@
 -record(prj_cfg, {rebar_cfg = no_rebar_cfg :: rebar_config:config(),
                   base_dir = ""            :: string(),
                   build_dir = undefined    :: string() | undefined,
-                  app_infos = []           :: [#app_info{}]}).
+                  app_build_cfgs = []           :: [#app_build_cfg{}]}).
 
 %% Events dispatched by repoxy_project_events
 

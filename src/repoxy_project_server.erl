@@ -147,35 +147,35 @@ load_app(AI, S) ->
         {error, _} ->
             S;
         _Ok ->
-            add_app_info(AI, S)
+            add_app_build_cfg(AI, S)
     end.
 
 %% @private
-unload_app(AI = #app_info{name = AppName}, S) ->
+unload_app(AI = #app_build_cfg{name = AppName}, S) ->
     case lookup_appinfo(AppName, S) of
         false ->
             S;
         _AI ->
             repoxy_project_code:unload_app(AI),
-            remove_app_info(AppName, S)
+            remove_app_build_cfg(AppName, S)
     end.
 
 %% @private
-lookup_appinfo(AppName, #state{prj_cfg = #prj_cfg{app_infos = AppInfos}}) ->
+lookup_appinfo(AppName, #state{prj_cfg = #prj_cfg{app_build_cfgs = AppInfos}}) ->
     lists:keyfind(AppName, ?APP_NAME_POS, AppInfos).
 
 %% @private
-add_app_info(AppInfo, S=#state{prj_cfg = Cfg}) ->
-    #app_info{name = AppName} = AppInfo,
-    #prj_cfg{app_infos = AppInfos} = Cfg,
+add_app_build_cfg(AppInfo, S=#state{prj_cfg = Cfg}) ->
+    #app_build_cfg{name = AppName} = AppInfo,
+    #prj_cfg{app_build_cfgs = AppInfos} = Cfg,
     NewAppInfos = lists:keystore(AppName, ?APP_NAME_POS, AppInfos, AppInfo),
-    S#state{prj_cfg = Cfg#prj_cfg{app_infos = NewAppInfos}}.
+    S#state{prj_cfg = Cfg#prj_cfg{app_build_cfgs = NewAppInfos}}.
 
 %% @private
-remove_app_info(AppName, S=#state{prj_cfg = Cfg}) ->
-    #prj_cfg{app_infos = AppInfos} = Cfg,
+remove_app_build_cfg(AppName, S=#state{prj_cfg = Cfg}) ->
+    #prj_cfg{app_build_cfgs = AppInfos} = Cfg,
     NewAppInfos = lists:keydelete(AppName, ?APP_NAME_POS, AppInfos),
-    S#state{prj_cfg = Cfg#prj_cfg{app_infos = NewAppInfos}}.
+    S#state{prj_cfg = Cfg#prj_cfg{app_build_cfgs = NewAppInfos}}.
 
 %%
 %% TODO define 'test' with reference to real code that it calls

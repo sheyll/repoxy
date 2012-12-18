@@ -75,7 +75,7 @@ rebar_error_test() ->
     em:await_expectations(M).
 
 clean_build_test() ->
-    AppInfo1 = #app_info{name = "TestApp1"},
+    AppInfo1 = #app_build_cfg{name = "TestApp1"},
     M = em:new(),
     em:strict(M, repoxy_project_events, add_sup_handler,
               [repoxy_project_server, em:zelf()]),
@@ -92,14 +92,14 @@ clean_build_test() ->
     em:await(M, PrjLoaded),
     repoxy_project:clean_build(),
     em:await(M, RebarExecuted),
-    %% discovery of 'app_info_1'
+    %% discovery of 'app_build_cfg_1'
     repoxy_project_server:on_project_event(Pid, ?on_app_discovered(AppInfo1)),
     em:await(M, Loaded),
     stop_server(Pid),
     em:await_expectations(M).
 
 unload_existing_app_test() ->
-    AppInfo1 = #app_info{name = "TestApp1"},
+    AppInfo1 = #app_build_cfg{name = "TestApp1"},
     M = em:new(),
     em:strict(M, repoxy_project_events, add_sup_handler,
               [repoxy_project_server, em:zelf()]),
@@ -118,7 +118,7 @@ unload_existing_app_test() ->
     em:await(M, PrjLoaded),
     repoxy_project:clean_build(),
     em:await(M, RebarExecuted),
-    %% discovery of 'app_info_1'
+    %% discovery of 'app_build_cfg_1'
     repoxy_project_server:on_project_event(Pid, ?on_app_discovered(AppInfo1)),
     em:await(M, Loaded_1st),
     %% fake a second discovery of the same app
