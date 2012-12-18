@@ -9,7 +9,7 @@
 %%% @end
 %%% Created :  8 Dec 2012 by Sven Heyll <sven@sheyllpc>
 %%%-------------------------------------------------------------------
--module(repoxy_project_events).
+-module(repoxy_evt).
 
 %% API
 -export([start_link/0, add_sup_handler/2, notify/1]).

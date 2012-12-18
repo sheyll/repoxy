@@ -30,7 +30,7 @@ handle_request(Other) ->
     ok.
 
 
-%% @doc Format events from {@link repoxy_project_events} into the
+%% @doc Format events from {@link repoxy_evt} into the
 %% 'outside-world' representation. If the term is not recognized it will be
 %% returned as is.
 -spec format_event(term()) -> term().

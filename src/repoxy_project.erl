@@ -6,6 +6,9 @@
 %%% Front-End module for Repoxy. Once a server is running, these functions can
 %%% be called to dispatch commands to the project server.
 %%%
+%%% This is server is necessary to coordinate parallel actions so they do not
+%%% overwrite on the same source files.
+%%%
 %%% @end
 %%%-------------------------------------------------------------------
 -module(repoxy_project).
@@ -40,7 +43,7 @@ load(Dir) ->
 %% compiled, all dependencies will be fechted and compiled.  After that every
 %% module will be compiled with debug options and loaded. During this command
 %% application discovery events for each application and each release will be
-%% issued via {@link repoxy_project_events}. When the application discovery is
+%% issued via {@link repoxy_evt}. When the application discovery is
 %% finished, repoxy will compile all files and send compilation messages like
 %% error or warnings via the gen_event. Note that this command can be executed
 %% only when after the project is loaded.

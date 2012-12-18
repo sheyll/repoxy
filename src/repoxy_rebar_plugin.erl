@@ -35,7 +35,7 @@ repoxy_discover(Cfg, Arg) when is_list(Arg) ->
                         expand_lib_dirs(AppLibDirs, CWD, [])],
             SourcePath = filename:join([CWD, "src"]),
             TestPath = filename:join([CWD, "test"]),
-            repoxy_project_events:notify(?on_app_discovered(
+            repoxy_evt:notify(?on_app_discovered(
                                             #app_build_cfg{
                                                name = AppName,
                                                lib_paths = LibPaths,

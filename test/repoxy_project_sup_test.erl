@@ -11,7 +11,7 @@ correct_children_test() ->
     process_flag(trap_exit, true),
     M = em:new(),
 
-    em:strict(M, repoxy_project_events, start_link, [],
+    em:strict(M, repoxy_evt, start_link, [],
               {return, {ok, self()}}),
     em:strict(M, repoxy_project, start_link, [],
               {return, {ok, self()}}),

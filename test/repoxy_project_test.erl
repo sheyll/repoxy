@@ -12,7 +12,7 @@
 
 load_test() ->
     M = em:new(),
-    em:strict(M, repoxy_project_events, add_sup_handler,
+    em:strict(M, repoxy_evt, add_sup_handler,
               [repoxy_project_server, em:zelf()]),
     PrjLoaded = mock_load_project(M, project_dir),
     mock_unload_project(M),
@@ -26,10 +26,10 @@ load_test() ->
 unexpected_event_test() ->
     UM = unexpected_message,
     M = em:new(),
-    em:strict(M, repoxy_project_events, add_sup_handler,
+    em:strict(M, repoxy_evt, add_sup_handler,
               [repoxy_project_server, em:zelf()]),
     PrjLoaded = mock_load_project(M, project_dir),
-    em:strict(M, repoxy_project_events, notify,
+    em:strict(M, repoxy_evt, notify,
               [?on_internal_error({error, {unexpected_event, UM}})]),
     mock_unload_project(M),
     em:replay(M),
@@ -42,7 +42,7 @@ unexpected_event_test() ->
 
 unload_test() ->
     M = em:new(),
-    em:strict(M, repoxy_project_events, add_sup_handler,
+    em:strict(M, repoxy_evt, add_sup_handler,
               [repoxy_project_server, em:zelf()]),
     PrjLoaded = mock_load_project(M, project_dir),
     mock_unload_project(M),
@@ -56,13 +56,13 @@ unload_test() ->
 
 rebar_error_test() ->
     M = em:new(),
-    em:strict(M, repoxy_project_events, add_sup_handler,
+    em:strict(M, repoxy_evt, add_sup_handler,
               [repoxy_project_server, em:zelf()]),
     PrjLoaded = mock_load_project(M, project_dir),
     em:strict(M, repoxy_rebar, rebar,
               [rebar_cfg, ['clean', 'get-deps', 'compile', 'repoxy_discover']],
               {return, {error, test_err}}),
-    GotProjectEvent = em:strict(M, repoxy_project_events, notify,
+    GotProjectEvent = em:strict(M, repoxy_evt, notify,
                                 [?on_internal_error({error, test_err})]),
     mock_unload_project(M),
     em:replay(M),
@@ -77,7 +77,7 @@ rebar_error_test() ->
 clean_build_test() ->
     AppInfo1 = #app_build_cfg{name = "TestApp1"},
     M = em:new(),
-    em:strict(M, repoxy_project_events, add_sup_handler,
+    em:strict(M, repoxy_evt, add_sup_handler,
               [repoxy_project_server, em:zelf()]),
     PrjLoaded = mock_load_project(M, project_dir),
 
@@ -101,7 +101,7 @@ clean_build_test() ->
 unload_existing_app_test() ->
     AppInfo1 = #app_build_cfg{name = "TestApp1"},
     M = em:new(),
-    em:strict(M, repoxy_project_events, add_sup_handler,
+    em:strict(M, repoxy_evt, add_sup_handler,
               [repoxy_project_server, em:zelf()]),
     PrjLoaded = mock_load_project(M, project_dir),
     RebarExecuted = em:strict(M, repoxy_rebar, rebar,
@@ -134,14 +134,14 @@ mock_load_project(M, Dir) ->
     em:strict(M, repoxy_node_backup, backup_node, [], {return, node_backup}),
     em:strict(M, repoxy_rebar, load_rebar, [Dir],
               {return, rebar_cfg}),
-    em:strict(M, repoxy_project_events, notify,
+    em:strict(M, repoxy_evt, notify,
               [?on_project_load(#prj_cfg{build_dir = build_dir,
                                          rebar_cfg = rebar_cfg})]).
 
 mock_unload_project(M) ->
     em:strict(M, repoxy_node_backup, restore_node, [node_backup]),
     em:strict(M, repoxy_build_dir, clean_build_dir, [build_dir]),
-    em:strict(M, repoxy_project_events, notify,
+    em:strict(M, repoxy_evt, notify,
               [fun(?on_project_unload(
                       #prj_cfg{build_dir = build_dir,
                                rebar_cfg = rebar_cfg})) ->

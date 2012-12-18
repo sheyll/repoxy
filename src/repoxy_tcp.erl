@@ -9,7 +9,7 @@
 %%%-------------------------------------------------------------------
 -module(repoxy_tcp).
 
--behaviour(repoxy_project_events).
+-behaviour(repoxy_evt).
 -behaviour(gen_fsm).
 
 %% API
@@ -36,7 +36,7 @@ start_link(Port) ->
     gen_fsm:start_link({local, ?SERVER}, ?MODULE, Port, []).
 
 %%%===================================================================
-%%% repoxy_project_events callbacks
+%%% repoxy_evt callbacks
 %%%===================================================================
 
 %% @private
@@ -53,7 +53,7 @@ on_project_event(Pid, ProjectEvent) ->
 %% @private
 %%--------------------------------------------------------------------
 init(Port) ->
-    repoxy_project_events:add_sup_handler(?MODULE, self()),
+    repoxy_evt:add_sup_handler(?MODULE, self()),
     gen_fsm:send_event(self(), accept),
     {ok, LSock} = gen_tcp:listen(Port, [{packet, raw},
                                         {mode, list},

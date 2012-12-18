@@ -28,7 +28,7 @@
                   build_dir = undefined    :: string() | undefined,
                   app_build_cfgs = []           :: [#app_build_cfg{}]}).
 
-%% Events dispatched by repoxy_project_events
+%% Events dispatched by repoxy_evt
 
 -define(on_app_discovered(AppInfo),
         {on_app_discovered, AppInfo}).

@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(repoxy_project_server).
 
--behaviour(repoxy_project_events).
+-behaviour(repoxy_evt).
 -behaviour(gen_fsm).
 
 %% event handler callback
@@ -30,7 +30,7 @@
                 :: #prj_cfg{} | no_prj_cfg}).
 
 %%%===================================================================
-%%% repoxy_project_events callbacks
+%%% repoxy_evt callbacks
 %%%===================================================================
 
 %% @private
@@ -46,7 +46,7 @@ on_project_event(_Pid, _) ->
 %% @private
 init([]) ->
     process_flag(trap_exit, true),
-    repoxy_project_events:add_sup_handler(?MODULE, self()),
+    repoxy_evt:add_sup_handler(?MODULE, self()),
     {ok, no_project_loaded, #state{}}.
 
 %% @private
@@ -108,7 +108,7 @@ load_project(Dir) ->
             NodeBackup = repoxy_node_backup:backup_node(),
             RebarCfg = repoxy_rebar:load_rebar(Dir),
             PC = #prj_cfg{build_dir = BuildDir, rebar_cfg = RebarCfg},
-            repoxy_project_events:notify(?on_project_load(PC)),
+            repoxy_evt:notify(?on_project_load(PC)),
             #state{prj_cfg = PC, node_backup = NodeBackup}
         end
     of
@@ -116,7 +116,7 @@ load_project(Dir) ->
             {project_loaded, State}
     catch
         C:Exception ->
-            repoxy_project_events:notify(
+            repoxy_evt:notify(
               ?on_project_load_failed(Dir, {C, Exception})),
             {no_project_loaded, #state{}}
     end.
@@ -127,7 +127,7 @@ unload_project(#state{node_backup = NodeBackup,
                       prj_cfg = PC = #prj_cfg{build_dir = BuildDir}}) ->
     dispatch_errors(repoxy_node_backup:restore_node(NodeBackup)),
     dispatch_errors(repoxy_build_dir:clean_build_dir(BuildDir)),
-    repoxy_project_events:notify(?on_project_unload(PC)),
+    repoxy_evt:notify(?on_project_unload(PC)),
     #state{}.
 
 %% @private
@@ -136,7 +136,7 @@ dispatch_errors(ok) ->
 dispatch_errors({ok, V}) ->
     {ok, V};
 dispatch_errors(Err) ->
-    repoxy_project_events:notify(?on_internal_error(Err)),
+    repoxy_evt:notify(?on_internal_error(Err)),
     Err.
 
 %% @doc Load an application found by {@link repoxy_rebar_plugin}, and all

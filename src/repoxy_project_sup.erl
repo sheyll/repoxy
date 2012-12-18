@@ -47,9 +47,9 @@ init([]) ->
     Shutdown = 2000,
     Type = worker,
 
-    RepoxyPrjEvt = {repoxy_project_events,
-                    {repoxy_project_events, start_link, []},
-                    Restart, Shutdown, Type, [repoxy_project_events]},
+    RepoxyPrjEvt = {repoxy_evt,
+                    {repoxy_evt, start_link, []},
+                    Restart, Shutdown, Type, [repoxy_evt]},
     RepoxyPrj = {repoxy_project,
                     {repoxy_project, start_link, []},
                     Restart, Shutdown, Type, [repoxy_project]},

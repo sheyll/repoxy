@@ -17,9 +17,9 @@ valid_message_test() ->
     OutMsg = "[some_event earg1]",
 
     M = em:new(),
-    em:strict(M, repoxy_project_events, add_sup_handler,
+    em:strict(M, repoxy_evt, add_sup_handler,
               [repoxy_tcp, em:zelf()]),
-    %% send an event from repoxy_project_events to tcp client
+    %% send an event from repoxy_evt to tcp client
     em:strict(M, repoxy_facade, format_event, [OutTerm],
               {return, FormattedOutTerm}),
     em:strict(M, repoxy_sexp, from_erl, [FormattedOutTerm],
@@ -47,7 +47,7 @@ need_more_data_close_reconnect_test() ->
     InTerm = request,
 
     M = em:new(),
-    em:strict(M, repoxy_project_events, add_sup_handler,
+    em:strict(M, repoxy_evt, add_sup_handler,
               [repoxy_tcp, em:zelf()]),
     %% receive a command from tcp client and dispatch to repoxy_facade
     em:strict(M, repoxy_sexp, to_erl, [InMsg],
@@ -78,7 +78,7 @@ close_command_test() ->
     InTerm = [close],
 
     M = em:new(),
-    em:strict(M, repoxy_project_events, add_sup_handler,
+    em:strict(M, repoxy_evt, add_sup_handler,
               [repoxy_tcp, em:zelf()]),
     Closing = em:strict(M, repoxy_sexp, to_erl, [InMsg],
                         {return, {ok, InTerm}}),
@@ -107,7 +107,7 @@ multi_packet_message_test() ->
     InTermComplete = {ok, InTerm},
 
     M = em:new(),
-    em:strict(M, repoxy_project_events, add_sup_handler, [repoxy_tcp, em:any()]),
+    em:strict(M, repoxy_evt, add_sup_handler, [repoxy_tcp, em:any()]),
     em:strict(M, repoxy_sexp, to_erl, [InMsgPart1],
               {return, InTermIncomplete}),
     em:strict(M, repoxy_sexp, to_erl, [InMsgPart1 ++ InMsgPart2],

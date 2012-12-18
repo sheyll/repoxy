@@ -22,9 +22,9 @@ load_app(#app_build_cfg{name = Name, lib_paths = LibPaths}) ->
 %% @private
 %%------------------------------------------------------------------------------
 dispatch_load_event(AI, Arg = {error, _}) ->
-    repoxy_project_events:notify(?on_app_load_failed(AI, Arg)), Arg;
+    repoxy_evt:notify(?on_app_load_failed(AI, Arg)), Arg;
 dispatch_load_event(AI, Arg) ->
-    repoxy_project_events:notify(?on_app_load(AI)), Arg.
+    repoxy_evt:notify(?on_app_load(AI)), Arg.
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -39,9 +39,9 @@ unload_app(#app_build_cfg{name = Name, lib_paths = LibPaths}) ->
 %% @private
 %%------------------------------------------------------------------------------
 dispatch_unload_event(AppName, Arg = {error, _}) ->
-    repoxy_project_events:notify(?on_app_unload_failed(AppName, Arg)), Arg;
+    repoxy_evt:notify(?on_app_unload_failed(AppName, Arg)), Arg;
 dispatch_unload_event(AppName, Arg) ->
-    repoxy_project_events:notify(?on_app_unload(AppName)), Arg.
+    repoxy_evt:notify(?on_app_unload(AppName)), Arg.
 
 %% TODO create app_runtime_info with loaded modules
 %% TODO generat on_app_unload when project gets unloaded
