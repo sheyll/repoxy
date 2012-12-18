@@ -24,6 +24,9 @@
 %%% API
 %%%===================================================================
 
+-callback on_project_event(term(), term()) ->
+    ok.
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Start the event manager.
@@ -34,8 +37,8 @@ start_link() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Attach a handler to the project events manager.
-%% The function `Module:on_project_event/2' is called for each event.
+%% Attach a handler to the project events manager.  The function
+%% `Module:on_project_event(Arg, Event)' is called for each event.
 %% @end
 %%--------------------------------------------------------------------
 add_sup_handler(Module, Arg) ->
