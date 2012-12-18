@@ -7,18 +7,22 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-define(TEST_PORT, 7788).
+
 valid_message_test() ->
     InMsg = "request",
     InTerm = request,
     OutTerm = {some_event, earg1},
+    FormattedOutTerm = [some_event, earg1, formatted],
     OutMsg = "[some_event earg1]",
-    Test = self(),
 
     M = em:new(),
     em:strict(M, repoxy_project_events, add_sup_handler,
               [repoxy_tcp, em:zelf()]),
     %% send an event from repoxy_project_events to tcp client
-    em:strict(M, repoxy_sexp, from_erl, [OutTerm],
+    em:strict(M, repoxy_facade, format_event, [OutTerm],
+              {return, FormattedOutTerm}),
+    em:strict(M, repoxy_sexp, from_erl, [FormattedOutTerm],
               {return, OutMsg}),
     %% receive a command from tcp client and dispatch to repoxy_facade
     em:strict(M, repoxy_sexp, to_erl, [InMsg],
@@ -26,8 +30,8 @@ valid_message_test() ->
     em:strict(M, repoxy_facade, handle_request, [InTerm]),
 
     em:replay(M),
-    (catch repoxy_tcp:start_link()),
-    {ok, Sock} = gen_tcp:connect("localhost", 5678,
+    (catch repoxy_tcp:start_link(?TEST_PORT)),
+    {ok, Sock} = gen_tcp:connect("localhost", ?TEST_PORT,
                                  [{active, false},
                                   {mode, list},
                                   {packet, raw}]),
@@ -41,7 +45,6 @@ valid_message_test() ->
 need_more_data_close_reconnect_test() ->
     InMsg = "request",
     InTerm = request,
-    Test = self(),
 
     M = em:new(),
     em:strict(M, repoxy_project_events, add_sup_handler,
@@ -53,15 +56,15 @@ need_more_data_close_reconnect_test() ->
               {return, {ok, InTerm}}),
     em:strict(M, repoxy_facade, handle_request, [InTerm]),
     em:replay(M),
-    (catch repoxy_tcp:start_link()),
-    {ok, Sock} = gen_tcp:connect("localhost", 5678,
+    (catch repoxy_tcp:start_link(?TEST_PORT)),
+    {ok, Sock} = gen_tcp:connect("localhost", ?TEST_PORT,
                                  [{active, false},
                                   {mode, list},
                                   {packet, raw}]),
     ok = gen_tcp:send(Sock, InMsg),
     receive after 150 -> ok end,
     ok = gen_tcp:close(Sock),
-    {ok, Sock2} = gen_tcp:connect("localhost", 5678,
+    {ok, Sock2} = gen_tcp:connect("localhost", ?TEST_PORT,
                                   [{active, false},
                                    {mode, list},
                                    {packet, raw}]),
@@ -73,33 +76,27 @@ need_more_data_close_reconnect_test() ->
 close_command_test() ->
     InMsg = "(close)",
     InTerm = [close],
-    Test = self(),
 
     M = em:new(),
     em:strict(M, repoxy_project_events, add_sup_handler,
               [repoxy_tcp, em:zelf()]),
-    em:strict(M, repoxy_sexp, to_erl, [InMsg],
-              {function, fun(_) ->
-                                 Test ! closing,
-                                 {ok, InTerm}
-                         end}),
-
+    Closing = em:strict(M, repoxy_sexp, to_erl, [InMsg],
+                        {return, {ok, InTerm}}),
     em:replay(M),
-    (catch repoxy_tcp:start_link()),
-    {ok, Sock} = gen_tcp:connect("localhost", 5678,
+    (catch repoxy_tcp:start_link(?TEST_PORT)),
+    {ok, Sock} = gen_tcp:connect("localhost", ?TEST_PORT,
                                  [{active, false},
                                   {mode, list},
                                   {packet, raw}]),
     ok = gen_tcp:send(Sock, InMsg),
-    receive closing -> ok end,
-    {ok, Sock2} = gen_tcp:connect("localhost", 5678,
+    em:await(M, Closing),
+    {ok, Sock2} = gen_tcp:connect("localhost", ?TEST_PORT,
                                  [{active, false},
                                   {mode, list},
                                   {packet, raw}]),
     ok = gen_tcp:close(Sock2),
-    em:verify(M),
+    em:await_expectations(M),
     kill_repoxy_tcp().
-
 
 multi_packet_message_test() ->
     InMsgPartRaw1 = "                request p1",
@@ -108,7 +105,6 @@ multi_packet_message_test() ->
     InTermIncomplete = {error, reason},
     InTerm = request,
     InTermComplete = {ok, InTerm},
-    Test = self(),
 
     M = em:new(),
     em:strict(M, repoxy_project_events, add_sup_handler, [repoxy_tcp, em:any()]),
@@ -118,8 +114,8 @@ multi_packet_message_test() ->
               {return, InTermComplete}),
     em:strict(M, repoxy_facade, handle_request, [InTerm]),
     em:replay(M),
-    (catch repoxy_tcp:start_link()),
-    {ok, Sock} = gen_tcp:connect("localhost", 5678,
+    (catch repoxy_tcp:start_link(?TEST_PORT)),
+    {ok, Sock} = gen_tcp:connect("localhost", ?TEST_PORT,
                                  [{active, false},
                                   {mode, list},
                                   {sndbuf, length(InMsgPart1) + 1},

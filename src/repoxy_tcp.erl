@@ -9,10 +9,11 @@
 %%%-------------------------------------------------------------------
 -module(repoxy_tcp).
 
+-behaviour(repoxy_project_events).
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/0, on_project_event/2]).
+-export([start_link/1, on_project_event/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -31,18 +32,14 @@
 %% Start a tcp server on localhost:5678
 %% @end
 %%--------------------------------------------------------------------
-start_link() ->
-    gen_fsm:start_link({local, ?SERVER}, ?MODULE, [], []).
+start_link(Port) ->
+    gen_fsm:start_link({local, ?SERVER}, ?MODULE, Port, []).
 
 %%%===================================================================
 %%% repoxy_project_events callbacks
 %%%===================================================================
 
-%%--------------------------------------------------------------------
-%% @doc
-%%
-%% @end
-%%--------------------------------------------------------------------
+%% @private
 on_project_event(Pid, ProjectEvent) ->
     gen_fsm:send_all_state_event(Pid, {project_event, ProjectEvent}).
 
@@ -55,10 +52,10 @@ on_project_event(Pid, ProjectEvent) ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-init([]) ->
+init(Port) ->
     repoxy_project_events:add_sup_handler(?MODULE, self()),
     gen_fsm:send_event(self(), accept),
-    {ok, LSock} = gen_tcp:listen(5678, [{packet, raw},
+    {ok, LSock} = gen_tcp:listen(Port, [{packet, raw},
                                         {mode, list},
                                         {exit_on_close, true},
                                         {reuseaddr, true},
@@ -194,5 +191,5 @@ concat_collected_and_new(Data, State) ->
 %% @private
 %%--------------------------------------------------------------------
 send_event(Event, State) ->
-    OutMsg = repoxy_sexp:from_erl(Event),
+    OutMsg = repoxy_sexp:from_erl(repoxy_facade:format_event(Event)),
     gen_tcp:send(State#state.csock, OutMsg).

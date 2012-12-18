@@ -19,7 +19,7 @@
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-main([]) ->
+main(Args) ->
     io:format(<<"
 
  -.- REPOXY -.-
@@ -30,13 +30,14 @@ erlang building and unit test execution.
 Usage: invoke repoxy from the directory where you would
 invoke rebar, i.e. the projects base directory.
 
-Starts a server on port 5678, that accpets s-expressions.
+Starts a server on port 7979, that accpets s-expressions.
 
 ">>),
-    error_logger:info_msg("Running in directory ~p.~n",
+    error_logger:info_msg("Running in directory \"~p\".~n",
                           [file:get_cwd()]),
+
     process_flag(trap_exit, true),
-    start_apps(),
+    start_apps(Args),
     wait_for_stop(),
     stop_apps().
 
@@ -51,12 +52,20 @@ shutdown() ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-start_apps() ->
+start_apps(Args) ->
     application:start(sasl),
     application:start(smooth),
     application:start(nano_trace),
+    application:load(repoxy),
+    case Args of
+        [PortStr|_] ->
+            Port = list_to_integer(PortStr),
+            application:set_env(repoxy, tcp_port, Port);
+        _ ->
+            ok
+    end,
     application:start(repoxy, permanent),
-    nano_trace:start([repoxy, rebar]),
+    nano_trace:start([repoxy, rebar], "/tmp/repoxy_trace.log"),
     nano_trace:msg_depth(100).
 
 %%--------------------------------------------------------------------
@@ -92,7 +101,7 @@ await_kill_pill() ->
 %%--------------------------------------------------------------------
 %% @private
 %%--------------------------------------------------------------------
-start(_StartType, _StartArgs) ->
+start(_StartType, _StartArg) ->
     repoxy_project_sup:start_link().
 
 %%--------------------------------------------------------------------
