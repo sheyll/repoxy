@@ -24,31 +24,39 @@ repoxy_discover(Cfg, Arg) when is_list(Arg) ->
     %% TODO add reltool.config support here??
     IsApp = string:str(Arg, ".app") =/= 0,
     if IsApp ->
-            io:format("REPOXY REBAR PLUGIN::repoxy_discover APP: ~p~n", [Arg]),
-            {NewCfg, _} = rebar_app_utils:app_name(Cfg, Arg),
-            {AppName, AppData} =
-                rebar_config:get_xconf(NewCfg, {appfile, {app_file, Arg}}),
-            AppLibDirs = rebar_config:get_local(Cfg, lib_dirs, []),
+            {NewCfg, AppName} = rebar_app_utils:app_name(Cfg, Arg),
+            AppVersion = rebar_app_utils:app_vsn(NewCfg, Arg),
+            io:format("REPOXY REBAR PLUGIN::repoxy_discover APP: ~p~n",
+                      [AppName]),
+            {_, AppData} = rebar_config:get_xconf(NewCfg,
+                                                  {appfile, {app_file, Arg}}),
+            AppLibDirs = rebar_config:get_local(NewCfg, lib_dirs, []),
             CWD = filename:absname(rebar_utils:get_cwd()),
-            ErlOpts = rebar_utils:erl_opts(Cfg),
-            ErlEUnitOpts = rebar_config:get_local(Cfg, erl_eunit_opts, []),
-            EDocOpts = rebar_config:get_local(Cfg, edoc_opts, []),
+            ErlOpts = rebar_utils:erl_opts(NewCfg),
+            ErlEUnitOpts = rebar_config:get_local(NewCfg, erl_eunit_opts, []),
+            EDocOpts = rebar_config:get_local(NewCfg, edoc_opts, []),
             LibPaths = [rebar_utils:ebin_dir()|
-                        expand_lib_dirs(AppLibDirs, rebar_utils:get_cwd(), [])],
-            gen_fsm:send_event(?SERVER, ?app_found(
-                                           #app_info{
-                                              name = AppName,
-                                              config = AppData,
-                                              lib_paths = LibPaths,
-                                              cwd = CWD,
-                                              erl_opts = ErlOpts,
-                                              erl_eunit_opts = ErlEUnitOpts,
-                                              edoc_opts = EDocOpts}));
+                        expand_lib_dirs(AppLibDirs, CWD, [])],
+            %% TODO regard settings in rebar.config
+            SourcePath = filename:join([CWD, "src"]),
+            TestPath = filename:join([CWD, "test"]),
+            repoxy_project_events:notify(?on_app_discovered(
+                                            #app_info{
+                                               name = AppName,
+                                               version = AppVersion,
+                                               config = AppData,
+                                               lib_paths = LibPaths,
+                                               cwd = CWD,
+                                               src_dir = SourcePath,
+                                               test_dir = TestPath,
+                                               erl_opts = ErlOpts,
+                                               erl_eunit_opts = ErlEUnitOpts,
+                                               edoc_opts = EDocOpts}));
 
        true ->
             ok
     end;
-repoxy_discover(_Cfg, Arg) ->
+repoxy_discover(_Cfg, _Arg) ->
     ok.
 
 
