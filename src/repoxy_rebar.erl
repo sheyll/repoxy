@@ -23,6 +23,17 @@ load_rebar(ProjectDir) ->
     rebar_log:init(Cfg),
     Cfg.
 
+%%------------------------------------------------------------------------------
+%% @doc
+%% Clean, get-deps, compile then as extra step repoxy_discover, even if there
+%% were error.
+%% @end
+%%------------------------------------------------------------------------------
+-spec discover(rebar_config:config()) ->
+                      ok | {error, term()}.
+discover(RebarCfg) ->
+    rebar(RebarCfg, ['clean', 'get-deps', 'compile']),
+    rebar(RebarCfg, ['repoxy_discover']).
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -53,5 +64,6 @@ rebar(RebarCfg, RebarCmds) ->
         ok
     catch
         C:E ->
+            error_logger:error_msg("Rebar commands: ~p~n ~w: ~p~n", [RebarCmds1, C, E]),
             {error, {{rebar_failed, RebarCmds}, C, E}}
     end.

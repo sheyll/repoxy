@@ -56,10 +56,7 @@ no_project_loaded(?load(Dir), _State) ->
 
 %% @private
 project_loaded(?clean_build, S = #state{prj_cfg = PC}) ->
-    dispatch_errors(
-      repoxy_rebar:rebar(
-        PC#prj_cfg.rebar_cfg,
-        ['clean', 'get-deps', 'compile', 'repoxy_discover'])),
+    dispatch_errors(repoxy_rebar:discover(PC#prj_cfg.rebar_cfg)),
     {next_state, project_loaded, S};
 
 project_loaded(?on_app_discovered(AI), S) ->

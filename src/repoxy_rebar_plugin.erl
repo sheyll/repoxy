@@ -49,7 +49,9 @@ repoxy_discover(Cfg, Arg) when is_list(Arg) ->
        true ->
             ok
     end;
-repoxy_discover(_Cfg, _Arg) ->
+repoxy_discover(Cfg, Arg) ->
+    error_logger:info_msg("REPOXY REBAR PLUGIN::repoxy_discover: ~w~n ~p~n~n",
+                          [Arg, Cfg]),
     ok.
 
 
