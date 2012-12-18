@@ -13,28 +13,30 @@
 %% of #app_build_cfg.name
 
 -record(app_build_cfg, {name = no_name,
-                   lib_paths = [],
-                   cwd = no_cwd,
-                   src_dir = no_src_dir,
-                   test_dir = no_test_dir,
-                   erl_opts = [],
-                   erl_eunit_opts = [],
-                   edoc_opts = []}).
+                        lib_paths = [],
+                        cwd = no_cwd,
+                        src_dir = no_src_dir,
+                        test_dir = no_test_dir,
+                        erl_opts = [],
+                        erl_eunit_opts = [],
+                        edoc_opts = []}).
+
 
 -record(node_backup, {apps_loaded, code_path, loaded_modules}).
 
 -record(prj_cfg, {rebar_cfg = no_rebar_cfg :: rebar_config:config(),
                   base_dir = ""            :: string(),
                   build_dir = undefined    :: string() | undefined,
-                  app_build_cfgs = []           :: [#app_build_cfg{}]}).
+                  app_build_cfgs = []      :: [#app_build_cfg{}]}).
 
 %% Events dispatched by repoxy_evt
 
 -define(on_app_discovered(AppInfo),
         {on_app_discovered, AppInfo}).
 
--define(on_app_load(AppName),
-        {on_app_load, AppName}).
+-define(otp_app(Name, Keys), {application, Name, Keys}).
+-define(on_app_load(AppName, ApplicationKeys),
+        {on_app_load, ?otp_app(AppName, ApplicationKeys)}).
 -define(on_app_load_failed(AppName, Reason),
         {on_app_load_failed, AppName, Reason}).
 

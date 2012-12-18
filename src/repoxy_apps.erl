@@ -6,7 +6,8 @@
 %%------------------------------------------------------------------------------
 -module(repoxy_apps).
 
--compile([export_all]).
+-export([load_app/1, unload_app/1]).
+
 -include("repoxy.hrl").
 
 %%------------------------------------------------------------------------------
@@ -14,26 +15,52 @@
 %% Load an application into the current node.
 %% @end
 %%------------------------------------------------------------------------------
+-spec load_app(#app_build_cfg{}) ->
+                      ok.
 load_app(#app_build_cfg{name = Name, lib_paths = LibPaths}) ->
-    code:add_pathsa(LibPaths),
-    dispatch_load_event(Name, application:load(Name)). %% TODO remove lib paths on error?
+    add_lib_paths(
+      LibPaths,
+      dispatch_load_event(
+        Name,
+        get_application_descriptor(
+          Name,
+          application:load(Name)))),
+    ok. %% TODO remove lib paths on error?
 
 %%------------------------------------------------------------------------------
 %% @private
 %%------------------------------------------------------------------------------
-dispatch_load_event(AI, Arg = {error, _}) ->
-    repoxy_evt:notify(?on_app_load_failed(AI, Arg)), Arg;
-dispatch_load_event(AI, Arg) ->
-    repoxy_evt:notify(?on_app_load(AI)), Arg.
+get_application_descriptor(Name, ok) ->
+    application:get_all_key(Name);
+get_application_descriptor(_Name, Err = {error, _}) ->
+    Err.
+
+%%------------------------------------------------------------------------------
+%% @private
+%%------------------------------------------------------------------------------
+dispatch_load_event(Name, Arg = {error, _}) ->
+    repoxy_evt:notify(?on_app_load_failed(Name, Arg)), Arg;
+dispatch_load_event(Name, {ok, AppKeys} = Arg) ->
+    repoxy_evt:notify(?on_app_load(Name, AppKeys)), Arg.
+
+%%------------------------------------------------------------------------------
+%% @private
+%%------------------------------------------------------------------------------
+add_lib_paths(_, Err = {error, _}) ->
+    Err;
+add_lib_paths(LibPaths, {ok, _}) ->
+    code:add_pathsz(LibPaths).
 
 %%------------------------------------------------------------------------------
 %% @doc
 %% Unload an application from the current node.
 %% @end
 %%------------------------------------------------------------------------------
+-spec unload_app(#app_build_cfg{}) ->
+                        ok.
 unload_app(#app_build_cfg{name = Name, lib_paths = LibPaths}) ->
     [code:del_path(LibPath) || LibPath <- LibPaths],
-    dispatch_load_event(Name, application:unload(Name)).
+    dispatch_unload_event(Name, application:unload(Name)).
 
 %%------------------------------------------------------------------------------
 %% @private
