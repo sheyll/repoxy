@@ -7,7 +7,8 @@
 %%% be called to dispatch commands to the project server.
 %%%
 %%% This is server is necessary to coordinate parallel actions so they do not
-%%% overwrite on the same source files.
+%%% overwrite on the same source files. Especially when 'rebar' is running other
+%%% processes must not interfere, e.g. by loading applications into the node.
 %%%
 %%% @end
 %%%-------------------------------------------------------------------
