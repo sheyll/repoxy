@@ -1,4 +1,4 @@
-REBAR="./rebar"
+REBAR="rebar"
 SHELL = /bin/sh
 
 .DEFAULT_GOAL := repoxy
