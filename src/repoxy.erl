@@ -103,7 +103,7 @@ await_kill_pill() ->
 %% @private
 %%--------------------------------------------------------------------
 start(_StartType, _StartArg) ->
-    repoxy_project_sup:start_link().
+    repoxy_sup:start_link().
 
 %%--------------------------------------------------------------------
 %% @private

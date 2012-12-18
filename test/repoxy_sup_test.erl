@@ -3,7 +3,7 @@
 %%% @copyright (C) 2012, Sven Heyll
 %%% Created : 13 Sep 2012 by Sven Heyll <sven.heyll@gmail.com>
 %%%-------------------------------------------------------------------
--module(repoxy_project_sup_test).
+-module(repoxy_sup_test).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -21,7 +21,7 @@ correct_children_test() ->
     em:replay(M),
     ok = application:load(repoxy),
     ok = application:set_env(repoxy, tcp_port, 1234),
-    Result = repoxy_project_sup:start_link(),
+    Result = repoxy_sup:start_link(),
     em:verify(M),
     ?assertMatch({ok, _}, Result),
     {ok, Pid} = Result,

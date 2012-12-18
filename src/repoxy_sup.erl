@@ -3,7 +3,7 @@
 %%% @copyright (C) 2012, Sven Heyll
 %%% Created : 13 Sep 2012 by Sven Heyll <sven.heyll@gmail.com>
 %%%-------------------------------------------------------------------
--module(repoxy_project_sup).
+-module(repoxy_sup).
 
 -behaviour(supervisor).
 
