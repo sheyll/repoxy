@@ -57,7 +57,7 @@ no_project_loaded(?load(Dir), _State) ->
 %% @private
 project_loaded(?clean_build, S = #state{prj_cfg = PC}) ->
     dispatch_errors(
-      repoxy_project_rebar:rebar(
+      repoxy_rebar:rebar(
         PC#prj_cfg.rebar_cfg,
         ['clean', 'get-deps', 'compile', 'repoxy_discover'])),
     {next_state, project_loaded, S};
@@ -106,7 +106,7 @@ load_project(Dir) ->
     try begin
             BuildDir = repoxy_build_dir:new_build_dir(),
             NodeBackup = repoxy_node_backup:backup_node(),
-            RebarCfg = repoxy_project_rebar:load_rebar(Dir),
+            RebarCfg = repoxy_rebar:load_rebar(Dir),
             PC = #prj_cfg{build_dir = BuildDir, rebar_cfg = RebarCfg},
             repoxy_project_events:notify(?on_project_load(PC)),
             #state{prj_cfg = PC, node_backup = NodeBackup}

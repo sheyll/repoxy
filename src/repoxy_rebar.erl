@@ -1,4 +1,4 @@
--module(repoxy_project_rebar).
+-module(repoxy_rebar).
 -compile([export_all]).
 
 -include("repoxy.hrl").
