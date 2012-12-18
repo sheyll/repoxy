@@ -1,9 +1,8 @@
 %%%-------------------------------------------------------------------
 %%% @author Sven Heyll <sven.heyll@gmail.com>
 %%% @copyright (C) 2012, Sven Heyll
-%%% Created : 19 Sep 2012 by Sven Heyll <sven.heyll@gmail.com>
 %%%-------------------------------------------------------------------
--module(repoxy_project_code_test).
+-module(repoxy_node_backup_test).
 -include_lib("eunit/include/eunit.hrl").
 -include("repoxy.hrl").
 
@@ -18,7 +17,7 @@ backup_restore_node_test() ->
     OldPath = code:get_path(),
     OldAppLoaded = application:loaded_applications(),
     OldApssStarted = application:which_applications(),
-    BackUp = repoxy_project_code:backup_node(),
+    BackUp = repoxy_node_backup:backup_node(),
 
     %% load some fake my_module
     M = em:new(),
@@ -33,7 +32,7 @@ backup_restore_node_test() ->
     application:load(parsetools),
     application:start(parsetools),
 
-    repoxy_project_code:restore_node(BackUp),
+    repoxy_node_backup:restore_node(BackUp),
 
     ?assertEqual(OldPath, code:get_path()),
     ?assertEqual(OldAppLoaded, application:loaded_applications()),
@@ -41,9 +40,3 @@ backup_restore_node_test() ->
     ?assertEqual(false, lists:keyfind(my_module, 1, code:all_loaded())),
 
     em:verify(M).
-
-load_app_build_cfg_test() ->
-   ok. %% TODO load_app_build_cfg_test
-
-unload_app_build_cfg_test() ->
-    ok. %% TODO unload_app_build_cfg_test

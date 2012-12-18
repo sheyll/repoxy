@@ -84,7 +84,7 @@ clean_build_test() ->
     RebarExecuted = em:strict(M, repoxy_project_rebar, rebar,
                               [rebar_cfg, ['clean', 'get-deps',
                                            'compile', 'repoxy_discover']]),
-    Loaded = em:strict(M, repoxy_project_code, load_app, [AppInfo1]),
+    Loaded = em:strict(M, repoxy_apps, load_app, [AppInfo1]),
     mock_unload_project(M),
     em:replay(M),
     Pid = start_server(),
@@ -107,10 +107,10 @@ unload_existing_app_test() ->
     RebarExecuted = em:strict(M, repoxy_project_rebar, rebar,
                               [rebar_cfg, ['clean', 'get-deps',
                                            'compile', 'repoxy_discover']]),
-    Loaded_1st = em:strict(M, repoxy_project_code, load_app, [AppInfo1]),
+    Loaded_1st = em:strict(M, repoxy_apps, load_app, [AppInfo1]),
     %% loading the same app 2. time: must unload before loading again
-    em:strict(M, repoxy_project_code, unload_app, [AppInfo1]),
-    Loaded_2nd = em:strict(M, repoxy_project_code, load_app, [AppInfo1]),
+    em:strict(M, repoxy_apps, unload_app, [AppInfo1]),
+    Loaded_2nd = em:strict(M, repoxy_apps, load_app, [AppInfo1]),
     mock_unload_project(M),
     em:replay(M),
     Pid = start_server(),
@@ -130,8 +130,8 @@ unload_existing_app_test() ->
 %% Test utils %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 mock_load_project(M, Dir) ->
-    em:strict(M, repoxy_project_code, new_build_dir, [], {return, build_dir}),
-    em:strict(M, repoxy_project_code, backup_node, [], {return, node_backup}),
+    em:strict(M, repoxy_build_dir, new_build_dir, [], {return, build_dir}),
+    em:strict(M, repoxy_node_backup, backup_node, [], {return, node_backup}),
     em:strict(M, repoxy_project_rebar, load_rebar, [Dir],
               {return, rebar_cfg}),
     em:strict(M, repoxy_project_events, notify,
@@ -139,8 +139,8 @@ mock_load_project(M, Dir) ->
                                          rebar_cfg = rebar_cfg})]).
 
 mock_unload_project(M) ->
-    em:strict(M, repoxy_project_code, restore_node, [node_backup]),
-    em:strict(M, repoxy_project_code, clean_build_dir, [build_dir]),
+    em:strict(M, repoxy_node_backup, restore_node, [node_backup]),
+    em:strict(M, repoxy_build_dir, clean_build_dir, [build_dir]),
     em:strict(M, repoxy_project_events, notify,
               [fun(?on_project_unload(
                       #prj_cfg{build_dir = build_dir,

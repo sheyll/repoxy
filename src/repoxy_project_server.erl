@@ -104,8 +104,8 @@ code_change(_OldVsn, StateName, Prj_Cfg, _Extra) ->
 %% etc...
 load_project(Dir) ->
     try begin
-            BuildDir = repoxy_project_code:new_build_dir(),
-            NodeBackup = repoxy_project_code:backup_node(),
+            BuildDir = repoxy_build_dir:new_build_dir(),
+            NodeBackup = repoxy_node_backup:backup_node(),
             RebarCfg = repoxy_project_rebar:load_rebar(Dir),
             PC = #prj_cfg{build_dir = BuildDir, rebar_cfg = RebarCfg},
             repoxy_project_events:notify(?on_project_load(PC)),
@@ -125,8 +125,8 @@ load_project(Dir) ->
 %% pre-load state.
 unload_project(#state{node_backup = NodeBackup,
                       prj_cfg = PC = #prj_cfg{build_dir = BuildDir}}) ->
-    dispatch_errors(repoxy_project_code:restore_node(NodeBackup)),
-    dispatch_errors(repoxy_project_code:clean_build_dir(BuildDir)),
+    dispatch_errors(repoxy_node_backup:restore_node(NodeBackup)),
+    dispatch_errors(repoxy_build_dir:clean_build_dir(BuildDir)),
     repoxy_project_events:notify(?on_project_unload(PC)),
     #state{}.
 
@@ -143,7 +143,7 @@ dispatch_errors(Err) ->
 %% modules of that application, add the libdir and dispatch the corresponding
 %% event: `?on_app_load(AppInfo)'
 load_app(AI, S) ->
-    case repoxy_project_code:load_app(AI) of
+    case repoxy_apps:load_app(AI) of
         {error, _} ->
             S;
         _Ok ->
@@ -156,7 +156,7 @@ unload_app(AI = #app_build_cfg{name = AppName}, S) ->
         false ->
             S;
         _AI ->
-            repoxy_project_code:unload_app(AI),
+            repoxy_apps:unload_app(AI),
             remove_app_build_cfg(AppName, S)
     end.
 
