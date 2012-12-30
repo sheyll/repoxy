@@ -49,10 +49,10 @@ format_event(?on_project_load(PrjCfg)) ->
     ?on_project_load(format_event(PrjCfg));
 format_event(?on_project_unload(PrjCfg)) ->
     ?on_project_unload(format_event(PrjCfg));
-format_event(#prj_cfg{base_dir = Base,
+format_event(#prj_cfg{rebar_cfg = RebarCfg,
                       build_dir = Build}) ->
     [prj_cfg,
-     base_dir, Base,
+     base_dir, repoxy_rebar_cfg:get_base_dir(RebarCfg),
      build_dir, Build];
 format_event(Other) ->
     Other.

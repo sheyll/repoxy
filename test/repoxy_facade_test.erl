@@ -47,21 +47,33 @@ format_event_app_build_cfg_test() ->
     ok.
 
 format_event_prj_load_test() ->
-    PC = #prj_cfg{base_dir = "base/dir",
+    RebarCfg = rebar_cfg,
+    BaseDir = base_dir,
+    M = em:new(),
+    em:strict(M, repoxy_rebar_cfg, get_base_dir, [RebarCfg],
+              {return, BaseDir}),
+    em:replay(M),
+    PC = #prj_cfg{rebar_cfg = RebarCfg,
                   build_dir = "build/dir"},
     Res = repoxy_facade:format_event(?on_project_load(PC)),
     ?assertEqual(?on_project_load(
                     ['prj_cfg',
-                     'base_dir', "base/dir",
+                     'base_dir', BaseDir,
                      'build_dir', "build/dir"]), Res),
-    ok.
+    em:verify(M).
 
 format_event_prj_unload_test() ->
-    PC = #prj_cfg{base_dir = "base/dir",
+    RebarCfg = rebar_cfg,
+    BaseDir = base_dir,
+    M = em:new(),
+    em:strict(M, repoxy_rebar_cfg, get_base_dir, [RebarCfg],
+              {return, BaseDir}),
+    em:replay(M),
+    PC = #prj_cfg{rebar_cfg = RebarCfg,
                   build_dir = "build/dir"},
     Res = repoxy_facade:format_event(?on_project_unload(PC)),
     ?assertEqual(?on_project_unload(
                     ['prj_cfg',
-                     'base_dir', "base/dir",
+                     'base_dir', BaseDir,
                      'build_dir', "build/dir"]), Res),
-    ok.
+    em:verify(M).

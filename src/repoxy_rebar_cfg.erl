@@ -11,6 +11,7 @@
 
 -export([empty/0,
          default/1,
+         get_base_dir/1,
          replace_with_global_config/1,
          add_operation_counter/1,
          add_vsn_cache/1,
@@ -54,6 +55,16 @@ default(Dir) ->
          fun add_repoxy_plugin/1,
          fun add_keep_going/1
         ])) (empty()).
+
+%%------------------------------------------------------------------------------
+%% @doc
+%% Return the directory that contains the rebar project.
+%% @end
+%%------------------------------------------------------------------------------
+-spec get_base_dir(rebar_config:config()) ->
+                          string().
+get_base_dir(RebarCfg) ->
+    rebar_config:get_xconf(RebarCfg, base_dir).
 
 %%------------------------------------------------------------------------------
 %% @doc

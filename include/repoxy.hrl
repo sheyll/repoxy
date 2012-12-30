@@ -25,7 +25,6 @@
 -record(node_backup, {apps_loaded, code_path, loaded_modules}).
 
 -record(prj_cfg, {rebar_cfg = no_rebar_cfg :: rebar_config:config(),
-                  base_dir = ""            :: string(),
                   build_dir = undefined    :: string() | undefined,
                   app_build_cfgs = []      :: [#app_build_cfg{}]}).
 
