@@ -70,7 +70,6 @@ accepting(accept, State) ->
     error_logger:info_msg("Waiting for client.~n"),
     {ok, ClientSock} = gen_tcp:accept(State#state.lsock),
     error_logger:info_msg("Connection to client established.~n"),
-
     NewState = State#state{csock = ClientSock, collected_data = []},
     reactivate_socket(NewState),
     {next_state, connected, NewState}.
@@ -153,7 +152,9 @@ reactivate_socket(State) ->
 until_request_complete({_Incomplete, State}) ->
     {next_state, need_more_data, State};
 until_request_complete({{ok, [close]}, _, State}) ->
-    accepting(accept, State);
+    error_logger:info_msg("Closing after completing request."),
+    ok = gen_tcp:close(State#state.csock),
+    accepting(accept, State#state{csock = no_socket});
 until_request_complete({{ok, _Req}, _Reply, State}) ->
     {next_state, connected, State#state{collected_data = []}}.
 
