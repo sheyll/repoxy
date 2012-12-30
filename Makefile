@@ -10,6 +10,7 @@ repoxy: compile
 
 compile:
 	$(REBAR) get-deps
+	$(REBAR) update-deps
 	$(REBAR) compile
 
 test: compile
