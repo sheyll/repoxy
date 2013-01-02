@@ -2,6 +2,10 @@
 %%% @author Sven Heyll <sven.heyll@gmail.com>
 %%% @copyright (C) 2012, Sven Heyll
 %%% Created : 13 Sep 2012 by Sven Heyll <sven.heyll@gmail.com>
+%%% @doc
+%%% The main supervisor for repoxy. This supervisor contains some static children
+%%% and is also used to run dynamic children.
+%%% @end
 %%%-------------------------------------------------------------------
 -module(repoxy_sup).
 

@@ -57,6 +57,7 @@ start_apps(Args) ->
     application:start(sasl),
     application:start(smooth),
     application:start(nano_trace),
+    application:start(inotify, permanent),
     application:load(repoxy),
     case Args of
         [PortStr|_] ->
@@ -67,7 +68,7 @@ start_apps(Args) ->
     end,
     application:start(repoxy, permanent),
     nano_trace:start([repoxy, rebar], "/tmp/repoxy_trace.log"),
-    nano_trace:msg_depth(100).
+    nano_trace:msg_depth(10).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -75,7 +76,8 @@ start_apps(Args) ->
 stop_apps() ->
     nano_trace:stop(),
     application:stop(repoxy),
-    application:start(nano_trace),
+    application:stop(inotify),
+    application:stop(nano_trace),
     application:stop(smooth),
     application:stop(sasl).
 

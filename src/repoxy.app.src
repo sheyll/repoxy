@@ -9,7 +9,8 @@
   {included_applications,[rebar]},
   {applications, [kernel,
                   stdlib,
-                  smooth]},
+                  smooth,
+		  inotify]},
   {env, [{tcp_port, 7979}]},
   {mod, {repoxy, []}}
  ]}.
