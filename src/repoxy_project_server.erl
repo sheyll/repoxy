@@ -175,9 +175,6 @@ remove_app_build_cfg(AppName, S=#state{prj_cfg = Cfg}) ->
     S#state{prj_cfg = Cfg#prj_cfg{app_build_cfgs = NewAppInfos}}.
 
 %%
-%% TODO define 'test' with reference to real code that it calls
-%% TODO discover App tests
-%% TODO discover syntax errors
 %% TODO peer_remote
 %% TODO run tests
 %% TODO trace tests
@@ -188,7 +185,39 @@ remove_app_build_cfg(AppName, S=#state{prj_cfg = Cfg}) ->
 %% TODO load module
 %% TODO check syntax of module
 %% TODO debug tests??
+%% TODO FREEZE TIME Feature to debug prod?
 %%
 %% TODO live infos in extra menu in emacs this contains all the 'live'
 %%      data (module is loaded, xref results, dialyzer results, debug??, trace??)
 %%
+%% TODO show relevant tests for function under cursor feature(like occurs mode)
+%% TODO code completion and templates:
+%%   Client moves point/cursor and sends
+%%   (lookup-scope app-name unsaved-data-file-name point)
+%%   client clears current-scope-cache
+%%
+%%   Server detects scope and sends
+%%   (scope-info + title category line-start line-end)
+%%
+%%   Client sends (lookup_completions scope)
+%%
+%%   Server sends (on_completion_found scope source_template display_title rank)
+%%
+%%   -OR- client knows parse treee and asks semantically
+%%   !!! NO because: if this logic is in server: much easier to add new client
+%%==============================================================================
+%% TODO THE NEXT STEPs
+%%
+%% Discover Modules/Headers/Tests/App-Config per App
+%%  Add Version to App info.
+%%  These are reported to the client so the client may display an overview of an
+%%  application's assets.
+%%
+%% Improve rebar error reporting and generate rebar error events
+%%
+%% Add syntax checking server and syntax checking events and syntax check every
+%% erlang file.
+%%
+%% Add error display/navigation to emacs.
+%%
+%% Add recompilation when idle feature.

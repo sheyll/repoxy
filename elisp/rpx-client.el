@@ -19,13 +19,7 @@
 ;;; Commentary:
 
 ;; These functions connect to a Repoxy Erlang node using TCP for message
-;; exchange.  Each message consists of a length field and a single s-expression
-;; or raw text. The s-expression are a super-stupid representation of erlang
-;; terms: Each erlang tuple is converted to a vector, and each atom is converted
-;; to a symbol with the same name. A string is simply the string (with double
-;; quotes). Lists are lists. A message header looks like this: "Length:
-;; [0-9]+\nContent-Type: text|s-expression\n\n". After the header follows the
-;; message body.
+;; exchange.
 ;;
 ;; The server startup and TPC port negotiation happens in 'rpx-server.el'
 ;;

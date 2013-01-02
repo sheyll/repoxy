@@ -39,7 +39,6 @@ load(Dir) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-
 %% Initiate a cleanup and rebuild of the project. All applications will be
 %% compiled, all dependencies will be fechted and compiled.  After that every
 %% module will be compiled with debug options and loaded. During this command
@@ -47,8 +46,7 @@ load(Dir) ->
 %% issued via {@link repoxy_evt}. When the application discovery is
 %% finished, repoxy will compile all files and send compilation messages like
 %% error or warnings via the gen_event. Note that this command can be executed
-%% only when after the project is loaded.
-
+%% only after the project is loaded.
 %% @end
 %%--------------------------------------------------------------------
 clean_build() ->

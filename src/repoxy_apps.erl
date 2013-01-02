@@ -17,39 +17,26 @@
 %%------------------------------------------------------------------------------
 -spec load_app(#app_build_cfg{}) ->
                       ok.
-load_app(#app_build_cfg{name = Name, lib_paths = LibPaths}) ->
-    add_lib_paths(
-      LibPaths,
-      dispatch_load_event(
-        Name,
-        get_application_descriptor(
-          Name,
-          application:load(Name)))),
-    ok. %% TODO remove lib paths on error?
+load_app(ABC = #app_build_cfg{name = Name}) ->
+    case application:load(Name) of
+
+        ok ->
+            find_assets(ABC);
+
+        Error ->
+            %% TODO remove lib paths on error?
+            error_logger:error_msg("Could not load application ~p: ~p",
+                                   [ABC, Error]),
+            repoxy_evt:notify(?on_app_load_failed(Name, Error))
+    end.
 
 %%------------------------------------------------------------------------------
 %% @private
 %%------------------------------------------------------------------------------
-get_application_descriptor(Name, ok) ->
-    application:get_all_key(Name);
-get_application_descriptor(_Name, Err = {error, _}) ->
-    Err.
-
-%%------------------------------------------------------------------------------
-%% @private
-%%------------------------------------------------------------------------------
-dispatch_load_event(Name, Arg = {error, _}) ->
-    repoxy_evt:notify(?on_app_load_failed(Name, Arg)), Arg;
-dispatch_load_event(Name, {ok, AppKeys} = Arg) ->
-    repoxy_evt:notify(?on_app_load(Name, AppKeys)), Arg.
-
-%%------------------------------------------------------------------------------
-%% @private
-%%------------------------------------------------------------------------------
-add_lib_paths(_, Err = {error, _}) ->
-    Err;
-add_lib_paths(LibPaths, {ok, _}) ->
-    code:add_pathsz(LibPaths).
+find_assets(#app_build_cfg{name = Name, lib_paths = LibPaths}) ->
+    code:add_pathsz(LibPaths),
+    {ok, Keys} = application:get_all_key(Name),
+    repoxy_evt:notify(?on_app_load(Name, Keys)).
 
 %%------------------------------------------------------------------------------
 %% @doc
@@ -69,20 +56,3 @@ dispatch_unload_event(AppName, Arg = {error, _}) ->
     repoxy_evt:notify(?on_app_unload_failed(AppName, Arg)), Arg;
 dispatch_unload_event(AppName, Arg) ->
     repoxy_evt:notify(?on_app_unload(AppName)), Arg.
-
-%% TODO create app_runtime_info with loaded modules
-%% TODO generat on_app_unload when project gets unloaded
-
-%% Client moves point/cursor and sends
-%% (lookup-scope app-name unsaved-data-file-name point)
-%% client clears current-scope-cache
-
-%% Server detects scope and sends
-%% (scope-info + title category line-start line-end)
-
-%% Client sends (lookup_completions scope)
-
-%% Server sends (on_completion_found scope source_template display_title rank)
-
-%% -OR- client knows parse treee and asks semantically
-%% !!! NO because: if this logic is in server: much easier to add new client
